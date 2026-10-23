@@ -25,7 +25,6 @@ jobs:
           python scripts/build_docs.py
           git diff --exit-code -- README.md examples/kaggle_anviroute.ipynb
       - run: anviroute --version
-      - run: kagglelink --version
       - name: Verify Windows installer and command from another folder
         if: runner.os == 'Windows'
         shell: pwsh

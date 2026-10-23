@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "anviroute"
-version = "0.4.0"
+version = "0.5.0"
 description = "Paste your API URL and key, then launch Claude Code"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -14,7 +14,6 @@ classifiers = ["Development Status :: 3 - Alpha", "Programming Language :: Pytho
 
 [project.scripts]
 anviroute = "anviroute.cli:main"
-kagglelink = "kagglelink.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["anviroute*", "kagglelink*"]
+include = ["anviroute*"]

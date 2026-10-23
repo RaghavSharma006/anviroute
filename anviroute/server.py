@@ -1,6 +1,7 @@
 """Authenticated local API; complete JSON upstream, Anthropic SSE locally."""
 
 import hmac
+import socket
 import sys
 from urllib.parse import urlsplit
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -12,6 +13,13 @@ from .api import UpstreamError, events
 
 class Server(ThreadingHTTPServer):
     daemon_threads = True
+    allow_reuse_address = False
+
+    def server_bind(self):
+        # Windows otherwise permits two HTTPServer instances to share a port.
+        if hasattr(socket, 'SO_EXCLUSIVEADDRUSE'):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
 
     def __init__(self, port, api, token):
         self.api, self.model, self.token = api, api.model, token
@@ -57,13 +65,16 @@ class Handler(BaseHTTPRequestHandler):
             send_json(self, 404, {"error": "Unknown route"})
             return
         try:
+            api = self.server.api
             payload = read_body(self)
             if not isinstance(payload, dict):
                 raise BridgeError("Expected a JSON object")
             if path.endswith("/count_tokens"):
-                send_json(self, 200, self.server.api.count_tokens(payload))
+                send_json(self, 200, api.count_tokens(payload))
                 return
-            result = self.server.api.complete(payload)
+            result = api.complete(payload)
+            if hasattr(self.server, 'record'):
+                self.server.record('adapter', 'Model response translated', status=200)
             if not payload.get("stream"):
                 send_json(self, 200, result)
                 return

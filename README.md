@@ -28,10 +28,10 @@ In a second terminal inside your project:
 anviroute.cmd run claude
 ```
 
-The first terminal keeps the service running. The second runs Claude without asking for API credentials. The dashboard separates Claude → AnviRoute, adapter, and AnviRoute → Kaggle/API diagnostics. API keys stay in service memory; enter them again after a service restart. Non-secret profiles are saved.
+The first terminal keeps the service running. The second runs Claude without asking for API credentials. The dashboard separates Claude → AnviRoute, adapter, and AnviRoute → Kaggle/API diagnostics. Windows saves API keys encrypted for your Windows account. Other platforms keep keys in memory only.
 
 <p align="center">
-  <a href="https://github.com/RaghavSharma006/anviroute/releases/latest/download/AnviRoute.cmd"><strong>⬇ Download AnviRoute.cmd · about 27 KB</strong></a>
+  <a href="https://github.com/RaghavSharma006/anviroute/releases/latest/download/AnviRoute.cmd"><strong>⬇ Download AnviRoute.cmd · about 30 KB</strong></a>
   &nbsp;·&nbsp;
   <a href="examples/kaggle_anviroute.ipynb">Kaggle setup notebook</a>
   &nbsp;·&nbsp;
@@ -46,23 +46,11 @@ AnviRoute is a small local API adapter. Your model runs on Kaggle (or another Op
 Your project → Claude Code → AnviRoute on your PC → your API URL → Ollama on Kaggle
 ```
 
-```text
-  AnviRoute
-  Paste your API. Use Claude Code.
-
-API URL: https://your-session.trycloudflare.com/v1
-API key (hidden; Enter if none):
-
-  Model: orcarouter/Qwen3.8-27B-Uncensored:q4_K_M
-  Local API: http://127.0.0.1:20128
-  Starting Claude Code…
-```
-
 **Release status:** alpha. Automated tests cover the local adapter, launcher, and Kaggle proxy against simulated APIs. A real Kaggle inference session has not yet been verified for this release. Model/tool compatibility varies; complete the [live test](docs/LIVE_TEST.md) before relying on it.
 
 ## 1. Download and open
 
-**[Download AnviRoute.cmd](https://github.com/RaghavSharma006/anviroute/releases/latest/download/AnviRoute.cmd)** → **open it** → paste your URL and key.
+**[Download AnviRoute.cmd](https://github.com/RaghavSharma006/anviroute/releases/latest/download/AnviRoute.cmd)** → **open it** → add your connection in the dashboard.
 
 That is the entire setup. The single file installs itself and starts the local dashboard service. No ZIP extraction, separate installer, pip, dependency downloads, or private Python environment.
 
@@ -70,8 +58,8 @@ That is the entire setup. The single file installs itself and starts the local d
 
 | Footprint | Size |
 | --- | --- |
-| Single downloadable command | About **27 KB** |
-| Installed compressed application | About **17 KB** |
+| Single downloadable command | About **30 KB** |
+| Installed compressed application | About **19 KB** |
 | Third-party runtime dependencies | **None** |
 | Extra Python environments / pip installs | **None** |
 
@@ -91,7 +79,7 @@ Upgrading from v0.2? Its old `%LOCALAPPDATA%\AnviRoute\runtime` environment may 
 
 ## 2. Start your Kaggle API
 
-If you already have an API URL and bearer key, skip to [Run Claude Code](#3-run-claude-code--every-session).
+If you already have an API URL and bearer key, skip to [Two-terminal workflow](#3-two-terminal-workflow).
 
 Otherwise, create a Kaggle Python notebook, enable **Internet**, choose a suitable GPU, and run the **two cells below in order**. You can also import [kaggle_anviroute.ipynb](examples/kaggle_anviroute.ipynb), which contains exactly these cells.
 
@@ -380,11 +368,32 @@ Copy **Base URL** and **API key**. Keep Kaggle running. Do not publish the noteb
 
 Watch the dashboard's connection path and diagnostics when troubleshooting. Updating an API URL or switching providers affects subsequent requests; in-flight requests stay with their original provider. Restart Claude when changing model capabilities/context expectations.
 
-Keys stay in memory, never in saved provider profiles. Restarting the service requires entering those keys again. The dashboard is loopback-only and its control API requires a local session token and same-origin browser requests.
+Give the connection a unique name, for example `kaggle-qwen`. Windows encrypts the saved API key with DPAPI, tied to your Windows account. Restart with the saved profile:
+
+```cmd
+anviroute.cmd start --modelname kaggle-qwen
+```
+
+From the source folder, the equivalent is:
+
+```cmd
+cd /d D:\omnirouteSpecial
+python -m anviroute start --modelname kaggle-qwen
+```
+
+Startup restores and checks the active profile in the background. Wait for **Connection verified**, then start Claude in terminal 2. Other platforms require entering the key again after restart. The dashboard is loopback-only and its control API requires a local session token and same-origin browser requests.
+
+### Error logs and design
+
+The **Error logs** page offers stage filters, message search, an errors-only view, and JSON export. Logs survive restarts, retain up to 500 visible events, and rotate at approximately 768 KB total. Prompts, replies, and credentials are excluded.
+
+![Warm console and error logs](docs/dashboard-errors.png)
+
+The ivory, charcoal, and olive console follows our [editable Canva design reference](https://canva.link/fz09319do9daxlp). The app uses local HTML/CSS/JavaScript with no UI libraries or external fonts.
 
 ## How credentials and replies work
 
-- The last URL, model, and API format are saved as convenience defaults. **The API key is not saved.** Press Enter to reuse the URL if it has not changed.
+- Named profiles save the URL, model, and format. Windows saves the key encrypted with DPAPI; the dashboard never returns it. Other platforms keep keys in memory only.
 - AnviRoute sends the upstream key as `Authorization: Bearer ...`; Claude gets a separate temporary local token.
 - The local server binds to `127.0.0.1`. The Kaggle proxy exposes inference/model-list routes and refuses model administration routes.
 - Cloudflare Quick Tunnels [do not support SSE](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/#limitations). AnviRoute requests a **complete JSON response**, then builds Claude's event stream locally. **Replies appear after upstream generation finishes**, rather than live token-by-token.
@@ -400,7 +409,7 @@ See [SECURITY.md](SECURITY.md) for trust boundaries and limitations. This adapte
 | `'anviroute.cmd' is not recognized` | Open the downloaded `AnviRoute.cmd` once, reopen Command Prompt, and restart VS Code if needed. Check `%LOCALAPPDATA%\AnviRoute\bin\anviroute.cmd` exists. |
 | Python is not found | Install Python 3.10+ with **Add Python to PATH**, then reopen your terminal. |
 | Claude is not found | Install Claude Code and verify `claude --version`. |
-| API key looks like it is not pasting | Key entry is hidden; paste once and press Enter. |
+| Key field is blank after saving | Keys are deliberately never returned to the browser. Leave blank to keep the saved key. |
 | No models listed | Check the URL/key and that Ollama has loaded the model. The endpoint must expose `/v1/models`. |
 | HTTP 401/403 | Copy the actual Kaggle API key; old/new sessions may have different keys. |
 | Proxy failed to start | Inspect `/tmp/rea/proxy.log`. Stop an unrelated process manually if it owns port 11435. |
@@ -414,9 +423,8 @@ See [SECURITY.md](SECURITY.md) for trust boundaries and limitations. This adapte
 The everyday command stays `anviroute.cmd run claude`. These flags are only for special cases:
 
 ```cmd
-anviroute.cmd run claude --port 20129
-anviroute.cmd run claude --timeout 180
-anviroute.cmd run claude --api-format anthropic
+anviroute.cmd start --port 20129
+anviroute.cmd start --modelname kaggle-qwen --no-browser
 anviroute.cmd run claude -- -p "Explain this project"
 ```
 
@@ -432,10 +440,8 @@ python scripts/build_docs.py
 python scripts/smoke_claude.py
 ```
 
-Tests cover the launcher, automatic model selection, translation, tools/results, local authentication, proxy route restrictions, and legacy transport. CI also tests Windows installation and invoking the command from another directory. Live compatibility is recorded separately through [docs/LIVE_TEST.md](docs/LIVE_TEST.md).
+Tests cover saved-profile restart, encrypted credentials, log redaction, launcher attachment, translation, tools/results, local authentication, and proxy restrictions. CI also tests Windows installation and invoking the command from another directory. Live compatibility is recorded separately through [docs/LIVE_TEST.md](docs/LIVE_TEST.md).
 
 Contributions, reproducible bug reports, and tested model reports are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md). If this saves you setup time, a star helps others find it.
-
-The older KaggleLink host/discovery implementation is retained for compatibility; it is not part of the normal AnviRoute setup. [Legacy guide](docs/LEGACY_KAGGLELINK.md).
 
 Independent community project. Not affiliated with Anthropic, Ollama, Kaggle, or Cloudflare. Non-Claude models in Claude Code are outside Anthropic's official support. [MIT license](LICENSE).

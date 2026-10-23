@@ -7,10 +7,11 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from unittest.mock import patch
 
 from anviroute.api import API, anthropic_response, normalize_url, openai_payload
-from anviroute.cli import choose_model, main, save_config
+from anviroute.cli import main
 from anviroute.server import Server
-from kagglelink.cli import start_server
-from kagglelink.common import BridgeError, request
+from anviroute.runtime import start_server
+from anviroute.common import BridgeError
+from helpers import request
 
 
 class FakeAPI(BaseHTTPRequestHandler):
@@ -72,11 +73,6 @@ class AnviRouteTests(unittest.TestCase):
         for server in (cls.local, cls.upstream):
             server.shutdown()
             server.server_close()
-
-    def test_automatic_model_without_prompt(self):
-        with patch("builtins.input", side_effect=AssertionError("No model prompt allowed")):
-            self.assertEqual(choose_model(self.api, None, ""), "test-coder")
-            self.assertEqual(choose_model(self.api, None, "other-model"), "other-model")
 
     def test_round_trip_tool_stream_and_complete_json_upstream(self):
         payload = {"model": "claude-alias", "max_tokens": 256, "stream": True,
@@ -166,51 +162,6 @@ class AnviRouteTests(unittest.TestCase):
                 api.check()
             self.assertEqual(complete.call_count, 1)
         self.assertEqual(api.format, "openai")
-
-    def test_simple_launcher_only_asks_for_url_and_key(self):
-        captured = {}
-
-        def fake_claude(command, env):
-            captured.update(env)
-            self.assertEqual(command[1:3], ["--model", "test-coder"])
-            result = request(env["ANTHROPIC_BASE_URL"] + "/v1/messages", env["ANTHROPIC_AUTH_TOKEN"],
-                             {"messages": [{"role": "user", "content": "Hello"}]})
-            self.assertEqual(result["stop_reason"], "tool_use")
-            return 0
-
-        with tempfile.TemporaryDirectory() as folder:
-            path = Path(folder) / "config.json"
-            with patch("anviroute.cli.config_path", return_value=path), \
-                    patch("anviroute.cli.shutil.which", return_value="fake-claude"), \
-                    patch("builtins.input", return_value=self.url) as url_prompt, \
-                    patch("anviroute.cli.getpass.getpass", return_value="upstream-secret") as key_prompt, \
-                    patch("anviroute.cli.subprocess.call", side_effect=fake_claude), \
-                    patch.dict("os.environ", {"ANVIROUTE_API_KEY": ""}):
-                # Remove the env key to exercise exactly the two interactive prompts.
-                import os
-                os.environ.pop("ANVIROUTE_API_KEY")
-                self.assertEqual(main(["run", "claude", "--direct", "--port", "0"]), 0)
-                self.assertEqual(url_prompt.call_count, 1)
-                self.assertEqual(key_prompt.call_count, 1)
-                config = json.loads(path.read_text())
-                self.assertEqual(set(config), {"url", "model", "api_format"})
-                self.assertNotIn("upstream-secret", path.read_text())
-        self.assertNotIn("ANVIROUTE_API_KEY", captured)
-        self.assertNotEqual(captured["ANTHROPIC_AUTH_TOKEN"], "upstream-secret")
-
-    def test_bad_key_can_be_corrected_in_the_same_terminal(self):
-        with tempfile.TemporaryDirectory() as folder:
-            with patch("anviroute.cli.config_path", return_value=Path(folder) / "config.json"), \
-                    patch("anviroute.cli.shutil.which", return_value="fake-claude"), \
-                    patch("builtins.input", side_effect=[self.url, "y", self.url]), \
-                    patch("anviroute.cli.getpass.getpass", side_effect=["wrong-key", "upstream-secret"]), \
-                    patch("anviroute.cli.sys.stdin.isatty", return_value=True), \
-                    patch("anviroute.cli.subprocess.call", return_value=0) as claude, \
-                    patch.dict("os.environ", {}, clear=False):
-                import os
-                os.environ.pop("ANVIROUTE_API_KEY", None)
-                self.assertEqual(main(["run", "claude", "--direct", "--port", "0"]), 0)
-                self.assertEqual(claude.call_count, 1)
 
     def test_malformed_tool_json_is_error(self):
         with self.assertRaisesRegex(BridgeError, "malformed tool"):
