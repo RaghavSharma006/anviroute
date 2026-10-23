@@ -137,6 +137,36 @@ class AnviRouteTests(unittest.TestCase):
         result = request(self.local_url + "/v1/messages/count_tokens", "local-secret", {"messages": []})
         self.assertGreater(result["input_tokens"], 0)
 
+    def test_claude_beta_query_routes_to_messages(self):
+        result = request(self.local_url + "/v1/messages?beta=true", "local-secret",
+                         {"messages": [{"role": "user", "content": "Hello"}]})
+        self.assertEqual(result["stop_reason"], "tool_use")
+        count = request(self.local_url + "/v1/messages/count_tokens?beta=true", "local-secret", {"messages": []})
+        self.assertGreater(count["input_tokens"], 0)
+
+    def test_mid_conversation_system_messages_are_preserved(self):
+        payload = {"messages": [{"role": "user", "content": "Hello"},
+                                 {"role": "system", "content": [{"type": "text", "text": "Reminder"}]}]}
+        self.assertEqual(openai_payload(payload, "model")["messages"][-1],
+                         {"role": "system", "content": "Reminder"})
+
+    def test_inference_preflight(self):
+        self.assertEqual(self.api.check()["stop_reason"], "tool_use")
+        self.assertEqual(FakeAPI.last_payload["max_tokens"], 1)
+
+    def test_preflight_switches_only_on_unsupported_api_route(self):
+        from anviroute.api import UpstreamError
+        api = API(self.url, "upstream-secret", "test-coder")
+        with patch.object(api, "complete", side_effect=[UpstreamError(404, "route missing"), {"content": []}]):
+            api.check()
+        self.assertEqual(api.format, "anthropic")
+        api.format = "openai"
+        with patch.object(api, "complete", side_effect=UpstreamError(401, "bad key")) as complete:
+            with self.assertRaises(UpstreamError):
+                api.check()
+            self.assertEqual(complete.call_count, 1)
+        self.assertEqual(api.format, "openai")
+
     def test_simple_launcher_only_asks_for_url_and_key(self):
         captured = {}
 
@@ -167,6 +197,20 @@ class AnviRouteTests(unittest.TestCase):
                 self.assertNotIn("upstream-secret", path.read_text())
         self.assertNotIn("ANVIROUTE_API_KEY", captured)
         self.assertNotEqual(captured["ANTHROPIC_AUTH_TOKEN"], "upstream-secret")
+
+    def test_bad_key_can_be_corrected_in_the_same_terminal(self):
+        with tempfile.TemporaryDirectory() as folder:
+            with patch("anviroute.cli.config_path", return_value=Path(folder) / "config.json"), \
+                    patch("anviroute.cli.shutil.which", return_value="fake-claude"), \
+                    patch("builtins.input", side_effect=[self.url, "y", self.url]), \
+                    patch("anviroute.cli.getpass.getpass", side_effect=["wrong-key", "upstream-secret"]), \
+                    patch("anviroute.cli.sys.stdin.isatty", return_value=True), \
+                    patch("anviroute.cli.subprocess.call", return_value=0) as claude, \
+                    patch.dict("os.environ", {}, clear=False):
+                import os
+                os.environ.pop("ANVIROUTE_API_KEY", None)
+                self.assertEqual(main(["run", "claude", "--port", "0"]), 0)
+                self.assertEqual(claude.call_count, 1)
 
     def test_malformed_tool_json_is_error(self):
         with self.assertRaisesRegex(BridgeError, "malformed tool"):

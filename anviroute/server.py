@@ -1,6 +1,8 @@
 """Authenticated local API; complete JSON upstream, Anthropic SSE locally."""
 
 import hmac
+import sys
+from urllib.parse import urlsplit
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from .common import BridgeError, read_body, send_json
@@ -13,7 +15,12 @@ class Server(ThreadingHTTPServer):
 
     def __init__(self, port, api, token):
         self.api, self.model, self.token = api, api.model, token
+        self.last_error = None
         super().__init__(("127.0.0.1", port), Handler)
+
+    def report_error(self, status, message):
+        self.last_error = message
+        print(f"\n[AnviRoute] HTTP {status}: {message}", file=sys.stderr, flush=True)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -34,7 +41,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if not self.authorized():
             return
-        if self.path != "/v1/models":
+        if urlsplit(self.path).path != "/v1/models":
             send_json(self, 404, {"error": "Unknown route"})
             return
         model = self.server.model
@@ -45,14 +52,15 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not self.authorized():
             return
-        if self.path not in ("/v1/messages", "/v1/messages/count_tokens"):
+        path = urlsplit(self.path).path
+        if path not in ("/v1/messages", "/v1/messages/count_tokens"):
             send_json(self, 404, {"error": "Unknown route"})
             return
         try:
             payload = read_body(self)
             if not isinstance(payload, dict):
                 raise BridgeError("Expected a JSON object")
-            if self.path.endswith("/count_tokens"):
+            if path.endswith("/count_tokens"):
                 send_json(self, 200, self.server.api.count_tokens(payload))
                 return
             result = self.server.api.complete(payload)
@@ -73,8 +81,9 @@ class Handler(BaseHTTPRequestHandler):
         except (BridgeError, KeyError, TypeError, ValueError) as exc:
             status = exc.status if isinstance(exc, UpstreamError) else 502
             error_type = "authentication_error" if status in (401, 403) else "api_error"
+            message = str(exc) if isinstance(exc, BridgeError) else "Invalid message or upstream response"
+            self.server.report_error(status, message)
             send_json(self, status, {"type": "error", "error": {"type": error_type,
-                                                                "message": str(exc) if isinstance(exc, BridgeError)
-                                                                else "Invalid message or upstream response"}})
+                                                                "message": message}})
         except (BrokenPipeError, ConnectionResetError, TimeoutError):
             self.close_connection = True

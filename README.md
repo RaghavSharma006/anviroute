@@ -17,7 +17,7 @@ anviroute.cmd run claude
 Paste your **API URL** and **API key**. AnviRoute detects the model and starts Claude Code in your current project folder. No model argument. No provider combos. No GitHub discovery setup.
 
 <p align="center">
-  <a href="https://github.com/RaghavSharma006/anviroute/releases/latest/download/AnviRoute.cmd"><strong>⬇ Download AnviRoute.cmd · about 16 KB</strong></a>
+  <a href="https://github.com/RaghavSharma006/anviroute/releases/latest/download/AnviRoute.cmd"><strong>⬇ Download AnviRoute.cmd · about 17 KB</strong></a>
   &nbsp;·&nbsp;
   <a href="examples/kaggle_anviroute.ipynb">Kaggle setup notebook</a>
   &nbsp;·&nbsp;
@@ -56,8 +56,8 @@ That is the entire setup. The single file installs itself and starts Claude Code
 
 | Footprint | Size |
 | --- | --- |
-| Single downloadable command | About **16 KB** |
-| Installed compressed application | About **9 KB** |
+| Single downloadable command | About **17 KB** |
+| Installed compressed application | About **10 KB** |
 | Third-party runtime dependencies | **None** |
 | Extra Python environments / pip installs | **None** |
 
@@ -373,6 +373,10 @@ You can run the same command from any folder after installing. In PowerShell, `a
 2. Paste its **API key**. Input is hidden; press Enter after pasting.
 3. Claude Code starts automatically. You do not need to type a model name.
 
+AnviRoute checks authentication, model discovery, and a tiny inference request before starting Claude. A cold model can take time to load. If the check fails, it explains the problem and lets you correct URL/key **in the same terminal**. During use, connection failures appear as `[AnviRoute]` diagnostics there; no second CMD window is needed.
+
+**Fixed in v0.3.1:** Claude's `?beta=true` request URLs and mid-conversation system messages are now accepted. Older AnviRoute versions could incorrectly trigger Claude's “selected model may not exist” message. Download/open the current file to update.
+
 In Claude Code, run `/status`. Confirm your detected model and the local endpoint **`http://127.0.0.1:20128`**. Then ask for a small file edit and approve the usual Claude permission request.
 
 The launcher reuses the previous model if it is still listed by the endpoint; otherwise it uses the first model returned by `/v1/models`. The included Kaggle proxy lists only the configured model, so it is selected automatically.
@@ -426,6 +430,7 @@ python -m pip install -e .
 python -m pip install -r requirements-dev.txt
 python -m unittest discover -s tests -v
 python scripts/build_docs.py
+python scripts/smoke_claude.py
 ```
 
 Tests cover the launcher, automatic model selection, translation, tools/results, local authentication, proxy route restrictions, and legacy transport. CI also tests Windows installation and invoking the command from another directory. Live compatibility is recorded separately through [docs/LIVE_TEST.md](docs/LIVE_TEST.md).

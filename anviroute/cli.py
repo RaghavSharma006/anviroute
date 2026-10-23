@@ -80,28 +80,39 @@ def run(args):
         raise BridgeError("Claude Code is not on PATH. Install Claude Code and reopen your terminal.")
     config = load_config()
     print("\n  AnviRoute\n  Paste your API. Use Claude Code.\n", flush=True)
-    url = normalize_url(args.url or prompt("API URL", config.get("url", "")))
-    if args.no_key:
-        key = ""
-    else:
-        key = os.environ.get("ANVIROUTE_API_KEY")
-        if key is None:
-            key = getpass.getpass("API key (hidden; Enter if none): ").strip()
     api_format = args.api_format or config.get("api_format", "openai")
     if api_format not in ("openai", "anthropic"):
         api_format = "openai"
-    api = API(url, key, args.model or "", api_format, args.timeout)
-    api.model = choose_model(api, args.model, config.get("model", ""))
+    first_attempt = True
+    while True:
+        try:
+            url = normalize_url((args.url if first_attempt else None) or prompt("API URL", config.get("url", "")))
+            key = "" if args.no_key else (os.environ.get("ANVIROUTE_API_KEY") if first_attempt else None)
+            if key is None:
+                key = getpass.getpass("API key (hidden; Enter if none): ").strip()
+            api = API(url, key, args.model or "", api_format, args.timeout)
+            api.model = choose_model(api, args.model, config.get("model", ""))
+            print("Checking connection and model inference…", flush=True)
+            api.check()
+            print(f"Connection OK · model found · {api.format} inference OK", flush=True)
+            break
+        except BridgeError as exc:
+            if not sys.stdin.isatty():
+                raise
+            print(f"\n[AnviRoute] Connection check failed: {exc}", file=sys.stderr, flush=True)
+            if prompt("Update connection and retry? Y/n", "y").lower().startswith("n"):
+                raise
+            first_attempt = False
     local_token = secrets.token_urlsafe(32)
     server = Server(args.port, api, local_token)
     start_server(server)
     base = f"http://127.0.0.1:{server.server_port}"
     try:
         try:
-            save_config(url, api.model, api_format)
+            save_config(url, api.model, api.format)
         except OSError:
             print("Could not save defaults; continuing for this session.")
-        print(f"\n  Model: {api.model}\n  Local API: {base}\n  Starting Claude Code…\n", flush=True)
+        print(f"\n  Model: {api.model}\n  Local API: {base}\n  Starting Claude Code in this terminal…\n", flush=True)
         env = claude_environment(base, api.model, local_token)
         env.pop("ANVIROUTE_API_KEY", None)
         env["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] = "1"
@@ -109,6 +120,8 @@ def run(args):
     finally:
         server.shutdown()
         server.server_close()
+        if server.last_error:
+            print(f"\n[AnviRoute] Last connection error: {server.last_error}", file=sys.stderr)
 
 
 def parser():

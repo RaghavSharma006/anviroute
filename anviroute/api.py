@@ -8,6 +8,7 @@ import urllib.request
 import uuid
 
 from .common import BridgeError, MAX_BODY, NoRedirect
+from . import __version__
 
 
 def normalize_url(value):
@@ -47,7 +48,7 @@ def openai_payload(payload, model):
         messages.append({"role": "system", "content": text_content(payload["system"])})
     for message in payload.get("messages", []):
         role = message["role"]
-        if role not in ("user", "assistant"):
+        if role not in ("user", "assistant", "system"):
             raise BridgeError("Unsupported conversation role")
         blocks = message["content"]
         if isinstance(blocks, str):
@@ -188,7 +189,7 @@ class API:
             raise BridgeError("API key must be ASCII without line breaks")
 
     def call(self, path, payload=None):
-        headers = {"Accept": "application/json", "User-Agent": "AnviRoute/0.2",
+        headers = {"Accept": "application/json", "User-Agent": "AnviRoute/" + __version__,
                    "anthropic-version": "2023-06-01"}
         if self.key:
             headers["Authorization"] = "Bearer " + self.key
@@ -205,8 +206,26 @@ class API:
                 return json.loads(raw)
         except urllib.error.HTTPError as exc:
             code = exc.code
+            hint = "check URL, API key, model, or tunnel"
+            try:
+                detail = json.loads(exc.read(4096)).get("error", "")
+                if isinstance(detail, dict):
+                    detail = detail.get("message", "")
+                detail = str(detail).lower()
+                if "does not support tools" in detail:
+                    hint = "the selected model does not support tool calling"
+                elif "model" in detail and ("not found" in detail or "does not exist" in detail):
+                    hint = "the selected model is not loaded on the upstream server"
+                elif "memory" in detail or "cuda" in detail:
+                    hint = "the model server reports a GPU/memory error; inspect Kaggle's Ollama log"
+            except (ValueError, OSError, AttributeError):
+                pass
             exc.close()
-            raise UpstreamError(code, f"Upstream HTTP {code}; check URL, API key, model, or tunnel") from None
+            if code in (401, 403):
+                hint = "authentication failed; copy the current Kaggle API key and retry"
+            elif code in (502, 503, 504, 530) and hint.startswith("check"):
+                hint = "Kaggle or the tunnel is unavailable; restart the session and enter its current URL"
+            raise UpstreamError(code, f"Upstream HTTP {code}; {hint}") from None
         except (urllib.error.URLError, TimeoutError, OSError):
             raise BridgeError("Upstream connection failed or timed out; check your Kaggle session") from None
         except ValueError:
@@ -219,6 +238,21 @@ class API:
                 raise BridgeError("Upstream did not return an Anthropic message")
             return {**result, "model": self.model}
         return anthropic_response(self.call("/chat/completions", openai_payload(payload, self.model)), self.model)
+
+    def check(self):
+        """Probe actual inference, not just a model-list response, before Claude starts."""
+        payload = {"messages": [{"role": "user", "content": "Reply OK."}], "max_tokens": 1}
+        try:
+            return self.complete(payload)
+        except UpstreamError as original:
+            if self.format != "openai" or original.status not in (404, 405):
+                raise
+            self.format = "anthropic"
+            try:
+                return self.complete(payload)
+            except BridgeError:
+                self.format = "openai"
+                raise original from None
 
     def count_tokens(self, payload):
         if self.format == "anthropic":
