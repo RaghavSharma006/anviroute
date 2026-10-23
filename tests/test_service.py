@@ -1,4 +1,5 @@
 import json
+import io
 import os
 from pathlib import Path
 import tempfile
@@ -114,6 +115,7 @@ class ServiceTests(unittest.TestCase):
         with patch('anviroute.cli.data_dir', return_value=Path(self.temp.name)), \
              patch('anviroute.cli.shutil.which', return_value='fake-claude'), \
              patch('anviroute.cli.subprocess.call', return_value=0) as child, \
+             patch('sys.stdout', new=io.TextIOWrapper(io.BytesIO(), encoding='cp1252')), \
              patch('builtins.input', side_effect=AssertionError('No connection prompts in terminal 2')):
             self.assertEqual(main(['run', 'claude']), 0)
             self.assertEqual(child.call_args.kwargs['env']['ANTHROPIC_BASE_URL'], self.url)

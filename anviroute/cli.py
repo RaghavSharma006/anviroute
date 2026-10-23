@@ -64,7 +64,7 @@ def run(args):
         raise BridgeError(f'Open {base}, add/activate an API, and click Check API and model first')
     env = claude_environment(base, state['model'], connection['token'])
     env['CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC'] = '1'
-    print(f"Claude → {base} → {state['model']}\nDiagnostics: {base}", flush=True)
+    print(f"Claude -> {base} -> {state['model']}\nDiagnostics: {base}", flush=True)
     return subprocess.call([executable, '--model', state['model'], *args.claude_args], env=env)
 
 
