@@ -13,6 +13,7 @@ from .common import BridgeError
 from . import __version__
 from .service import Router, data_dir, write_private
 from urllib.request import Request, urlopen
+from urllib.error import HTTPError
 import webbrowser
 import threading
 
@@ -84,6 +85,14 @@ def run(args):
         try:
             with urlopen(req, timeout=125) as response:
                 selected = json.load(response)
+        except HTTPError as exc:
+            try:
+                detail = json.load(exc).get('error', 'Connection check failed')
+            except (ValueError, OSError):
+                detail = 'Connection check failed'
+            finally:
+                exc.close()
+            raise BridgeError(f'{detail}. Diagnostics: {base}') from None
         except OSError:
             raise BridgeError(f'Cannot connect to saved model {args.modename!r}. Open {base} and update its Kaggle URL/key.') from None
         base += selected['path']

@@ -2,6 +2,8 @@
 
 import json
 import math
+import socket
+import ssl
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -183,6 +185,9 @@ def events(message):
 
 class API:
     def __init__(self, url, key, model, api_format="openai", timeout=110):
+        key = key.strip()
+        if key.lower().startswith('bearer '):
+            key = key[7:].strip()
         self.url, self.key, self.model = normalize_url(url), key, model
         self.format, self.timeout = api_format, timeout
         if not key.isascii() or any(c in key for c in "\r\n"):
@@ -218,6 +223,8 @@ class API:
                     hint = "the selected model is not loaded on the upstream server"
                 elif "memory" in detail or "cuda" in detail:
                     hint = "the model server reports a GPU/memory error; inspect Kaggle's Ollama log"
+                elif "context" in detail:
+                    hint = "context limit reached; compact the Claude conversation or increase Ollama context if GPU memory allows"
             except (ValueError, OSError, AttributeError):
                 pass
             exc.close()
@@ -225,9 +232,20 @@ class API:
                 hint = "authentication failed; copy the current Kaggle API key and retry"
             elif code in (502, 503, 504, 530) and hint.startswith("check"):
                 hint = "Kaggle or the tunnel is unavailable; restart the session and enter its current URL"
+            elif code == 524:
+                hint = "tunnel timed out waiting for inference; warm the model, reduce output length, or use a smaller model"
             raise UpstreamError(code, f"Upstream HTTP {code}; {hint}") from None
-        except (urllib.error.URLError, TimeoutError, OSError):
-            raise BridgeError("Upstream connection failed or timed out; check your Kaggle session") from None
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            reason = getattr(exc, 'reason', exc)
+            if isinstance(reason, socket.gaierror):
+                hint = "hostname cannot be resolved; check Internet/DNS, then paste the current Kaggle URL"
+            elif isinstance(reason, (TimeoutError, socket.timeout)):
+                hint = "request timed out; check model loading, GPU memory and output length in Kaggle"
+            elif isinstance(reason, ssl.SSLError):
+                hint = "TLS certificate verification failed; check your clock and HTTPS proxy"
+            else:
+                hint = "connection failed; check Internet access and whether the Kaggle session/tunnel is still running"
+            raise BridgeError("Upstream " + hint) from None
         except ValueError:
             raise BridgeError("Endpoint did not return JSON; check the API URL and tunnel") from None
 

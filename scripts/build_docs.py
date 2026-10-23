@@ -19,8 +19,9 @@ a 16 GB GPU may require CPU offloading. Change MODEL in both cells for another m
 
 Cell 2 prints a real API key. Keep the notebook and outputs private. After both cells
 finish, keep Kaggle running. On your PC install AnviRoute, open your project folder,
-and run `anviroute.cmd run claude`. Paste the printed Base URL and API key.
-No model argument or GitHub registry is required.
+and run `anviroute`. Paste the printed output in the frontend and save a name.
+In another terminal run `anviroute run claude --modename YOUR_NAME`.
+Use Send test message to verify an actual reply.
 """
     cells = [{"id": "instructions", "cell_type": "markdown", "metadata": {}, "source": intro.splitlines(keepends=True)}]
     for index, source in enumerate((first, second), 1):

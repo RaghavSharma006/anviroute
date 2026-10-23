@@ -17,6 +17,33 @@ from test_anviroute import FakeAPI
 
 
 class ServiceTests(unittest.TestCase):
+    def test_message_calls_inference_once_and_reports_usage(self):
+        saved = self.router.control('save', {'name': 'test', 'url': 'https://example.com', 'model': 'qwen'})
+        reply = {'content': [{'type': 'text', 'text': 'hello'}], 'usage': {'input_tokens': 7, 'output_tokens': 2}}
+        with patch('anviroute.service.API.complete', return_value=reply) as complete:
+            result = self.router.control('test', {'name': 'test', 'prompt': 'hi'})
+        self.assertEqual(complete.call_count, 1)
+        self.assertEqual(result['reply'], 'hello')
+        self.assertEqual(result['usage']['input_tokens'], 7)
+        self.assertTrue(self.router.status()['diagnostics'][saved['id']]['ok'])
+        self.assertNotIn('hello', (Path(self.temp.name)/'events.jsonl').read_text())
+
+    def test_expired_cached_connection_is_rechecked(self):
+        identifier = self.router.control('save', {'name': 'test', 'url': 'https://example.com', 'model': 'qwen'})['id']
+        self.router.ready_profiles[identifier] = self.router.api
+        self.router.checked = True
+        with patch('anviroute.service.API.call', side_effect=BridgeError('Upstream connection failed')):
+            with self.assertRaisesRegex(BridgeError, 'connection failed'):
+                self.router.control('prepare', {'name': 'test'})
+        self.assertFalse(self.router.checked)
+        self.assertNotIn(identifier, self.router.ready_profiles)
+
+    def test_invalid_test_message_never_calls_upstream(self):
+        with patch('anviroute.service.API.complete') as complete:
+            with self.assertRaises(BridgeError):
+                self.router.control('test', {'name': 'missing', 'prompt': 42})
+        complete.assert_not_called()
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.router = Router(0, self.temp.name)

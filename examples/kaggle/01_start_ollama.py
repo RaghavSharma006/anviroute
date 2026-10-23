@@ -7,6 +7,8 @@ import subprocess
 import requests
 
 MODEL = "orcarouter/Qwen3.8-27B-Uncensored:q4_K_M"
+# 32K is a memory compromise; larger projects may need 64K+ and more VRAM.
+CONTEXT_LENGTH = 32768
 OLLAMA = "http://127.0.0.1:11434"
 WORK = "/tmp/rea"
 os.makedirs(WORK, exist_ok=True)
@@ -30,7 +32,9 @@ except requests.RequestException:
     with open(WORK + "/ollama.log", "a") as log:
         ollama_proc = subprocess.Popen(
             ["ollama", "serve"], stdout=log, stderr=subprocess.STDOUT,
-            start_new_session=True, env={**os.environ, "OLLAMA_HOST": "127.0.0.1:11434"},
+            start_new_session=True, env={**os.environ, "OLLAMA_HOST": "127.0.0.1:11434",
+                "OLLAMA_KEEP_ALIVE": "30m", "OLLAMA_NUM_PARALLEL": "1",
+                "OLLAMA_MAX_LOADED_MODELS": "1", "OLLAMA_CONTEXT_LENGTH": str(CONTEXT_LENGTH)},
         )
     ollama_ready = False
     for _ in range(60):
@@ -52,5 +56,15 @@ if not any(m.get("name") == MODEL or m.get("model") == MODEL for m in models):
     print("Downloading model quietly; this can take several minutes...", flush=True)
     quiet(["ollama", "pull", MODEL])
 
+# Warm the model locally before the tunnel is used; report actual placement.
+warm = requests.post(OLLAMA + "/api/generate", json={
+    "model": MODEL, "keep_alive": "30m", "stream": False,
+    "options": {"num_ctx": CONTEXT_LENGTH},
+}, timeout=(10, 600))
+warm.raise_for_status()
+print("Loaded model / CPU-GPU placement:")
+subprocess.run(["ollama", "ps"], check=True)
+print("Context requested:", CONTEXT_LENGTH)
+print("If Ollama was already running, restart the Kaggle session to apply server settings.")
 print("✅ Ollama ready")
 print("✅ Model:", MODEL)

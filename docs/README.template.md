@@ -194,3 +194,14 @@ Tests cover saved-profile restart, encrypted credentials, log redaction, launche
 Contributions, reproducible bug reports, and tested model reports are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md). If this saves you setup time, a star helps others find it.
 
 Independent community project. Not affiliated with Anthropic, Ollama, Kaggle, or Cloudflare. Non-Claude models in Claude Code are outside Anthropic's official support. [MIT license](LICENSE).
+
+
+## Connection checks and performance
+
+Use **Send test message** on a saved model to see a real reply, elapsed time and input/output tokens. Each Claude launch rechecks the model endpoint; failed requests invalidate readiness. Error logs include duration and tool counts, never prompt text. Pasting an API key with a `Bearer ` prefix is accepted.
+
+The notebook warms the model, keeps it loaded for 30 minutes, and configures one inference slot with a 32K context. Existing Ollama processes must restart for server settings to apply. Check `ollama ps`: CPU offloading is a common cause of slow inference. A 27B model plus context may exceed your GPU memory. Increase context only when memory allows; Ollama recommends 64K+ for larger Claude projects. AnviRoute does not silently truncate your conversation or tools; OpenAI token counting is an estimate.
+
+Quick Tunnels do not support SSE, so replies are buffered until generation finishes. Keeping the model warm cannot extend Kaggle session limits or revive a stopped notebook. After shutdown, rerun the cells and paste their fresh output into the same saved profile. No key or URL can repair an offline backend.
+
+References: [Ollama memory and concurrency](https://docs.ollama.com/faq), [Claude context guidance](https://docs.ollama.com/integrations/claude-code), [Quick Tunnel limitations](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/).

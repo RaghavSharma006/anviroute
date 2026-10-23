@@ -1,4 +1,5 @@
 import json
+import socket
 from pathlib import Path
 import tempfile
 import unittest
@@ -58,6 +59,13 @@ class FakeAPI(BaseHTTPRequestHandler):
 
 
 class AnviRouteTests(unittest.TestCase):
+    def test_key_paste_normalization_and_dns_diagnostic(self):
+        api = API('https://example.com/v1/', '  Bearer secret  ', 'model')
+        self.assertEqual(api.key, 'secret')
+        with patch('urllib.request.OpenerDirector.open', side_effect=urllib.error.URLError(socket.gaierror('lookup failed'))):
+            with self.assertRaisesRegex(BridgeError, 'hostname cannot be resolved'):
+                api.call('/models')
+
     @classmethod
     def setUpClass(cls):
         cls.upstream = ThreadingHTTPServer(("127.0.0.1", 0), FakeAPI)

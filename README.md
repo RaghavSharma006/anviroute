@@ -110,6 +110,8 @@ import subprocess
 import requests
 
 MODEL = "orcarouter/Qwen3.8-27B-Uncensored:q4_K_M"
+# 32K is a memory compromise; larger projects may need 64K+ and more VRAM.
+CONTEXT_LENGTH = 32768
 OLLAMA = "http://127.0.0.1:11434"
 WORK = "/tmp/rea"
 os.makedirs(WORK, exist_ok=True)
@@ -133,7 +135,9 @@ except requests.RequestException:
     with open(WORK + "/ollama.log", "a") as log:
         ollama_proc = subprocess.Popen(
             ["ollama", "serve"], stdout=log, stderr=subprocess.STDOUT,
-            start_new_session=True, env={**os.environ, "OLLAMA_HOST": "127.0.0.1:11434"},
+            start_new_session=True, env={**os.environ, "OLLAMA_HOST": "127.0.0.1:11434",
+                "OLLAMA_KEEP_ALIVE": "30m", "OLLAMA_NUM_PARALLEL": "1",
+                "OLLAMA_MAX_LOADED_MODELS": "1", "OLLAMA_CONTEXT_LENGTH": str(CONTEXT_LENGTH)},
         )
     ollama_ready = False
     for _ in range(60):
@@ -155,6 +159,16 @@ if not any(m.get("name") == MODEL or m.get("model") == MODEL for m in models):
     print("Downloading model quietly; this can take several minutes...", flush=True)
     quiet(["ollama", "pull", MODEL])
 
+# Warm the model locally before the tunnel is used; report actual placement.
+warm = requests.post(OLLAMA + "/api/generate", json={
+    "model": MODEL, "keep_alive": "30m", "stream": False,
+    "options": {"num_ctx": CONTEXT_LENGTH},
+}, timeout=(10, 600))
+warm.raise_for_status()
+print("Loaded model / CPU-GPU placement:")
+subprocess.run(["ollama", "ps"], check=True)
+print("Context requested:", CONTEXT_LENGTH)
+print("If Ollama was already running, restart the Kaggle session to apply server settings.")
 print("✅ Ollama ready")
 print("✅ Model:", MODEL)
 ```
@@ -426,3 +440,14 @@ Tests cover saved-profile restart, encrypted credentials, log redaction, launche
 Contributions, reproducible bug reports, and tested model reports are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md). If this saves you setup time, a star helps others find it.
 
 Independent community project. Not affiliated with Anthropic, Ollama, Kaggle, or Cloudflare. Non-Claude models in Claude Code are outside Anthropic's official support. [MIT license](LICENSE).
+
+
+## Connection checks and performance
+
+Use **Send test message** on a saved model to see a real reply, elapsed time and input/output tokens. Each Claude launch rechecks the model endpoint; failed requests invalidate readiness. Error logs include duration and tool counts, never prompt text. Pasting an API key with a `Bearer ` prefix is accepted.
+
+The notebook warms the model, keeps it loaded for 30 minutes, and configures one inference slot with a 32K context. Existing Ollama processes must restart for server settings to apply. Check `ollama ps`: CPU offloading is a common cause of slow inference. A 27B model plus context may exceed your GPU memory. Increase context only when memory allows; Ollama recommends 64K+ for larger Claude projects. AnviRoute does not silently truncate your conversation or tools; OpenAI token counting is an estimate.
+
+Quick Tunnels do not support SSE, so replies are buffered until generation finishes. Keeping the model warm cannot extend Kaggle session limits or revive a stopped notebook. After shutdown, rerun the cells and paste their fresh output into the same saved profile. No key or URL can repair an offline backend.
+
+References: [Ollama memory and concurrency](https://docs.ollama.com/faq), [Claude context guidance](https://docs.ollama.com/integrations/claude-code), [Quick Tunnel limitations](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/).

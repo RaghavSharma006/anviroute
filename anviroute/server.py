@@ -3,6 +3,7 @@
 import hmac
 import socket
 import sys
+import time
 from urllib.parse import urlsplit
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -84,9 +85,13 @@ class Handler(BaseHTTPRequestHandler):
             if path.endswith("/count_tokens"):
                 send_json(self, 200, api.count_tokens(payload))
                 return
+            started = time.monotonic()
             result = api.complete(payload)
             if hasattr(self.server, 'record'):
-                self.server.record('adapter', 'Model response translated', status=200)
+                elapsed = round(time.monotonic() - started, 2)
+                usage = result.get('usage', {})
+                self.server.record('adapter', f'Response in {elapsed}s; input {usage.get("input_tokens", 0)}, output {usage.get("output_tokens", 0)} tokens; {len(payload.get("tools", []))} tools', status=200)
+                self.request_diagnostic(True, 'Inference completed', seconds=elapsed, input_tokens=usage.get('input_tokens', 0), output_tokens=usage.get('output_tokens', 0))
             if not payload.get("stream"):
                 send_json(self, 200, result)
                 return
@@ -106,7 +111,14 @@ class Handler(BaseHTTPRequestHandler):
             error_type = "authentication_error" if status in (401, 403) else "api_error"
             message = str(exc) if isinstance(exc, BridgeError) else "Invalid message or upstream response"
             self.server.report_error(status, message)
+            self.request_diagnostic(False, message)
             send_json(self, status, {"type": "error", "error": {"type": error_type,
                                                                 "message": message}})
         except (BrokenPipeError, ConnectionResetError, TimeoutError):
             self.close_connection = True
+
+    def request_diagnostic(self, ok, message, **metrics):
+        if hasattr(self.server, 'diagnostic'):
+            path = urlsplit(self.path).path
+            identifier = path.split('/', 3)[2] if path.startswith('/p/') else self.server.active
+            self.server.diagnostic(identifier, ok, message, **metrics)

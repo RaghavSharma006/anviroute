@@ -10,6 +10,7 @@ from pathlib import Path
 import secrets
 import tempfile
 import threading
+import time
 from urllib.parse import urlsplit
 
 from . import __version__
@@ -50,6 +51,7 @@ class Router(Server):
         self.model = ''
         self.checked = False
         self.ready_profiles = {}
+        self.diagnostics = {}
         self.last_error = None
         try:
             saved = json.loads((self.folder/'providers.json').read_text())
@@ -122,6 +124,7 @@ class Router(Server):
             self.control('check', {})
         except BridgeError as exc:
             self.upstream = str(exc)
+            self.diagnostic(self.active, False, str(exc))
             self.record('upstream', str(exc), False, getattr(exc, 'status', None))
 
     def status(self):
@@ -129,8 +132,19 @@ class Router(Server):
             return {'product': 'AnviRoute', 'version': __version__, 'address': self.address,
                     'active': self.active, 'model': self.model, 'ready': bool(self.api and self.model and self.checked),
                     'providers': [{**{k: v for k, v in p.items() if k not in ('key', 'encrypted_key')}, 'key_saved': bool(p.get('encrypted_key'))} for p in list(self.profiles.values())],
+                    'diagnostics': dict(self.diagnostics),
                     'credential_storage': 'Windows account encryption' if os.name == 'nt' else 'Memory only on this platform',
                     'events': list(self.events), 'client_seen': self.client_seen, 'upstream': self.upstream}
+
+    def diagnostic(self, identifier, ok, message, **metrics):
+        with self.lock:
+            self.diagnostics[identifier] = {'ok': ok, 'message': message,
+                'time': datetime.now().astimezone().isoformat(timespec='seconds'), **metrics}
+            if not ok:
+                self.ready_profiles.pop(identifier, None)
+            if identifier == self.active:
+                self.checked = ok
+                self.upstream = message
 
     def control(self, action, data):
         if any(not isinstance(v, str) for k, v in data.items() if k in ('id', 'name', 'url', 'key', 'model', 'format')):
@@ -145,8 +159,38 @@ class Router(Server):
                 return {**result, 'ready': True, 'message': 'Saved and ready for Claude'}
             except BridgeError as exc:
                 self.upstream = str(exc)
+                self.diagnostic(result['id'], False, str(exc))
                 self.record('upstream', str(exc), False, getattr(exc, 'status', None))
                 return {**result, 'ready': False, 'message': 'Saved. ' + str(exc)}
+        if action == 'test':
+            prompt = data.get('prompt', 'Hello. Reply briefly to verify this connection.')
+            if not isinstance(prompt, str) or not prompt.strip() or len(prompt) > 2000:
+                raise BridgeError('Test message must be text, up to 2000 characters')
+            with self.lock:
+                p = next((p for p in self.profiles.values() if p['name'].casefold() == data.get('name', '').casefold()), None)
+                if p is None:
+                    raise BridgeError('Saved model name not found. Add it in AnviRoute first.')
+                api = API(p['url'], p['key'], p['model'], p['format'])
+            started = time.monotonic()
+            try:
+                if not api.model:
+                    models = self.models(api)
+                    if not models:
+                        raise BridgeError('API returned no models')
+                    api.model = models[0]
+                result = api.complete({'messages': [{'role': 'user', 'content': prompt}], 'max_tokens': 128})
+            except BridgeError as exc:
+                if self.profiles.get(p['id']) is p:
+                    self.diagnostic(p['id'], False, str(exc))
+                raise
+            elapsed = round(time.monotonic() - started, 2)
+            usage = result.get('usage', {})
+            with self.lock:
+                if self.profiles.get(p['id']) is not p:
+                    raise BridgeError('Connection changed during test. Test the updated connection again.')
+                self.diagnostic(p['id'], True, 'Test message completed', seconds=elapsed, input_tokens=usage.get('input_tokens', 0), output_tokens=usage.get('output_tokens', 0))
+            self.record('upstream', f'Test completed in {elapsed}s; input {usage.get("input_tokens", 0)}, output {usage.get("output_tokens", 0)} tokens', status=200)
+            return {'reply': '\n'.join(b.get('text', '') for b in result.get('content', []) if b.get('type') == 'text') or '(No visible text; model may have exhausted the test output budget while thinking)', 'model': api.model, 'seconds': elapsed, 'usage': usage}
         if action == 'prepare':
             with self.lock:
                 p = next((p for p in self.profiles.values() if p['name'].casefold() == data.get('name', '').casefold()), None)
@@ -156,8 +200,17 @@ class Router(Server):
                 api = self.ready_profiles.get(identifier)
                 if api is None:
                     api = API(p['url'], p['key'], p['model'], p['format'])
+            try:
+                if identifier in self.ready_profiles:
+                    if api.model not in self.models(api):
+                        raise BridgeError('Saved model is unavailable. Edit its model ID or leave it blank to detect.')
+                else:
+                    self.verify(api)
+            except BridgeError as exc:
+                if self.profiles.get(identifier) is p:
+                    self.diagnostic(identifier, False, str(exc))
+                raise
             if identifier not in self.ready_profiles:
-                self.verify(api)
                 with self.lock:
                     if self.profiles.get(identifier) is not p:
                         raise BridgeError('Connection changed during the check. Run the command again.')
@@ -168,6 +221,7 @@ class Router(Server):
                         self.checked = True
                         self.upstream = 'Authentication, model and inference OK'
                     self.persist()
+                    self.diagnostic(identifier, True, 'Authentication, model and inference OK')
             return {'model': api.model, 'path': '/p/' + identifier, 'ready': True}
         if action in ('save', 'activate', 'remove', 'model'):
             with self.lock:
@@ -220,6 +274,7 @@ class Router(Server):
             identifier = data.get('id') or secrets.token_hex(8)
             previous = self.profiles.get(identifier, {})
             self.ready_profiles.pop(identifier, None)
+            self.diagnostics.pop(identifier, None)
             name = data.get('name', 'API').strip()[:80]
             if not name or any(p['name'].casefold() == name.casefold() and p['id'] != identifier for p in self.profiles.values()):
                 raise BridgeError('Use a unique profile name')
@@ -316,8 +371,8 @@ class DashboardHandler(Handler):
                 send_json(self, 200, result)
             except (BridgeError, ValueError, TypeError, KeyError) as exc:
                 message = str(exc) if isinstance(exc, BridgeError) else 'Invalid configuration'
-                self.server.record('upstream' if path.endswith(('/check', '/models')) else 'adapter', message, False, getattr(exc, 'status', 400))
-                if path.endswith(('/check', '/models')):
+                self.server.record('upstream' if path.endswith(('/check', '/models', '/test', '/prepare')) else 'adapter', message, False, getattr(exc, 'status', 400))
+                if path.endswith(('/check', '/models', '/test', '/prepare')):
                     self.server.upstream = message
                 send_json(self, 400, {'error': message})
         else:
