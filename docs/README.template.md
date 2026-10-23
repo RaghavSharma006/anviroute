@@ -14,10 +14,24 @@
 anviroute.cmd run claude
 ```
 
-Paste your **API URL** and **API key**. AnviRoute detects the model and starts Claude Code in your current project folder. No model argument. No provider combos. No GitHub discovery setup.
+Start the proxy in one terminal, configure it in your browser, then connect Claude from another terminal.
+
+```cmd
+anviroute.cmd start
+```
+
+Open **http://127.0.0.1:20128**. Add API URL/key, activate the connection, and click **Check API and model**. Add other API connections or switch models from this dashboard.
+
+In a second terminal inside your project:
+
+```cmd
+anviroute.cmd run claude
+```
+
+The first terminal keeps the service running. The second runs Claude without asking for API credentials. The dashboard separates Claude → AnviRoute, adapter, and AnviRoute → Kaggle/API diagnostics. API keys stay in service memory; enter them again after a service restart. Non-secret profiles are saved.
 
 <p align="center">
-  <a href="https://github.com/RaghavSharma006/anviroute/releases/latest/download/AnviRoute.cmd"><strong>⬇ Download AnviRoute.cmd · about 17 KB</strong></a>
+  <a href="https://github.com/RaghavSharma006/anviroute/releases/latest/download/AnviRoute.cmd"><strong>⬇ Download AnviRoute.cmd · about 27 KB</strong></a>
   &nbsp;·&nbsp;
   <a href="examples/kaggle_anviroute.ipynb">Kaggle setup notebook</a>
   &nbsp;·&nbsp;
@@ -50,14 +64,14 @@ API key (hidden; Enter if none):
 
 **[Download AnviRoute.cmd](https://github.com/RaghavSharma006/anviroute/releases/latest/download/AnviRoute.cmd)** → **open it** → paste your URL and key.
 
-That is the entire setup. The single file installs itself and starts Claude Code. No ZIP extraction, separate installer, pip, dependency downloads, or private Python environment.
+That is the entire setup. The single file installs itself and starts the local dashboard service. No ZIP extraction, separate installer, pip, dependency downloads, or private Python environment.
 
 **Requirements:** your existing **[Python 3.10+](https://www.python.org/downloads/windows/)** and **[Claude Code](https://code.claude.com/docs/en/overview)**. The tiny download does not bundle either runtime. If Python is not installed yet, enable **Add Python to PATH** during its installation.
 
 | Footprint | Size |
 | --- | --- |
-| Single downloadable command | About **17 KB** |
-| Installed compressed application | About **10 KB** |
+| Single downloadable command | About **27 KB** |
+| Installed compressed application | About **17 KB** |
 | Third-party runtime dependencies | **None** |
 | Extra Python environments / pip installs | **None** |
 
@@ -126,30 +140,15 @@ API key: <your generated secret>
 
 Copy **Base URL** and **API key**. Keep Kaggle running. Do not publish the notebook outputs, token file, or API key. The generated scripts/logs are in `/tmp/rea`; errors can be inspected in `/tmp/rea/ollama.log`, `proxy.log`, or `tunnel.log`.
 
-## 3. Run Claude Code — every session
+## 3. Two-terminal workflow
 
-Open **Command Prompt in the project folder you want Claude to work on**. For example:
+**Terminal 1:** `anviroute.cmd start` opens the dashboard at **http://127.0.0.1:20128**. Keep it open. Add a named API connection, paste URL/key, activate it, and click **Check API and model**. The dashboard can discover models, select a model, and switch API connections.
 
-```cmd
-cd /d D:\my-project
-anviroute.cmd run claude
-```
+**Terminal 2:** open your project folder and run `anviroute.cmd run claude`. Claude attaches to the already running local proxy. No URL/key or model prompt appears in this terminal.
 
-You can run the same command from any folder after installing. In PowerShell, `anviroute.cmd run claude` also works through PATH.
+Watch the dashboard's connection path and diagnostics when troubleshooting. Updating an API URL or switching providers affects subsequent requests; in-flight requests stay with their original provider. Restart Claude when changing model capabilities/context expectations.
 
-1. Paste the Kaggle **Base URL**.
-2. Paste its **API key**. Input is hidden; press Enter after pasting.
-3. Claude Code starts automatically. You do not need to type a model name.
-
-AnviRoute checks authentication, model discovery, and a tiny inference request before starting Claude. A cold model can take time to load. If the check fails, it explains the problem and lets you correct URL/key **in the same terminal**. During use, connection failures appear as `[AnviRoute]` diagnostics there; no second CMD window is needed.
-
-**Fixed in v0.3.1:** Claude's `?beta=true` request URLs and mid-conversation system messages are now accepted. Older AnviRoute versions could incorrectly trigger Claude's “selected model may not exist” message. Download/open the current file to update.
-
-In Claude Code, run `/status`. Confirm your detected model and the local endpoint **`http://127.0.0.1:20128`**. Then ask for a small file edit and approve the usual Claude permission request.
-
-The launcher reuses the previous model if it is still listed by the endpoint; otherwise it uses the first model returned by `/v1/models`. The included Kaggle proxy lists only the configured model, so it is selected automatically.
-
-When Kaggle restarts and the URL changes, close Claude, run **the same command**, and paste the new URL/key. This workflow uses manual URL entry; it does not automatically discover new sessions in the background.
+Keys stay in memory, never in saved provider profiles. Restarting the service requires entering those keys again. The dashboard is loopback-only and its control API requires a local session token and same-origin browser requests.
 
 ## How credentials and replies work
 

@@ -189,7 +189,7 @@ class AnviRouteTests(unittest.TestCase):
                 # Remove the env key to exercise exactly the two interactive prompts.
                 import os
                 os.environ.pop("ANVIROUTE_API_KEY")
-                self.assertEqual(main(["run", "claude", "--port", "0"]), 0)
+                self.assertEqual(main(["run", "claude", "--direct", "--port", "0"]), 0)
                 self.assertEqual(url_prompt.call_count, 1)
                 self.assertEqual(key_prompt.call_count, 1)
                 config = json.loads(path.read_text())
@@ -209,7 +209,7 @@ class AnviRouteTests(unittest.TestCase):
                     patch.dict("os.environ", {}, clear=False):
                 import os
                 os.environ.pop("ANVIROUTE_API_KEY", None)
-                self.assertEqual(main(["run", "claude", "--port", "0"]), 0)
+                self.assertEqual(main(["run", "claude", "--direct", "--port", "0"]), 0)
                 self.assertEqual(claude.call_count, 1)
 
     def test_malformed_tool_json_is_error(self):

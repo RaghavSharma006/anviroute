@@ -20,8 +20,8 @@ class LightweightReleaseTests(unittest.TestCase):
         subprocess.run([sys.executable, str(ROOT / 'scripts/build_release.py')], check=True, capture_output=True)
 
     def test_download_and_app_stay_small(self):
-        self.assertLess((ROOT / 'dist/AnviRoute.cmd').stat().st_size, 25_000)
-        self.assertLess((ROOT / 'dist/anviroute.pyz').stat().st_size, 12_000)
+        self.assertLess((ROOT / 'dist/AnviRoute.cmd').stat().st_size, 40_000)
+        self.assertLess((ROOT / 'dist/anviroute.pyz').stat().st_size, 25_000)
 
     def test_payload_integrity_and_no_legacy_modules(self):
         text = (ROOT / 'dist/AnviRoute.cmd').read_text()

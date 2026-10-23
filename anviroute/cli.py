@@ -17,6 +17,9 @@ from .common import BridgeError
 from . import __version__
 from .api import API, UpstreamError, normalize_url
 from .server import Server
+from .service import Router, data_dir, write_private
+from urllib.request import Request, urlopen
+import webbrowser
 
 
 def config_path():
@@ -74,7 +77,7 @@ def choose_model(api, requested, previous):
     raise BridgeError("The endpoint did not list any models. Check the API URL, API key, and that your model is loaded.")
 
 
-def run(args):
+def run_direct(args):
     executable = shutil.which("claude")
     if not executable:
         raise BridgeError("Claude Code is not on PATH. Install Claude Code and reopen your terminal.")
@@ -124,12 +127,60 @@ def run(args):
             print(f"\n[AnviRoute] Last connection error: {server.last_error}", file=sys.stderr)
 
 
+def serve(args):
+    server = Router(args.port)
+    descriptor = data_dir() / 'service.json'
+    write_private(descriptor, {'url': server.address, 'token': server.token})
+    print(f'AnviRoute service: {server.address}\nConfigure APIs in the dashboard. Keep this terminal open.\nSecond terminal: anviroute.cmd run claude', flush=True)
+    if not args.no_browser:
+        webbrowser.open(server.address)
+    try:
+        server.serve_forever()
+    finally:
+        server.server_close()
+        try:
+            current = json.loads(descriptor.read_text())
+            if current.get('token') == server.token:
+                descriptor.unlink()
+        except (OSError, ValueError):
+            pass
+
+
+def run(args):
+    if args.direct:
+        return run_direct(args)
+    executable = shutil.which('claude')
+    if not executable:
+        raise BridgeError('Claude Code is not on PATH')
+    try:
+        connection = json.loads((data_dir() / 'service.json').read_text())
+        base = connection['url']
+        # Only attach to our local service, never a URL modified to an external host.
+        if not base.startswith('http://127.0.0.1:') or not base.removeprefix('http://127.0.0.1:').isdigit():
+            raise ValueError()
+        req = Request(base + '/control/status', headers={'Authorization': 'Bearer ' + connection['token']})
+        with urlopen(req, timeout=5) as response:
+            state = json.load(response)
+    except (OSError, ValueError, KeyError):
+        raise BridgeError('AnviRoute service is not running. In the first terminal run: anviroute.cmd start') from None
+    if state.get('product') != 'AnviRoute' or not state.get('ready'):
+        raise BridgeError(f'Open {base}, add/activate an API, and click Check API and model first')
+    env = claude_environment(base, state['model'], connection['token'])
+    env['CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC'] = '1'
+    print(f"Claude → {base} → {state['model']}\nDiagnostics: {base}", flush=True)
+    return subprocess.call([executable, '--model', state['model'], *args.claude_args], env=env)
+
+
 def parser():
     root = argparse.ArgumentParser(description="AnviRoute · paste your API, launch Claude Code")
     root.add_argument("--version", action="version", version=__version__)
     commands = root.add_subparsers(dest="command", required=True)
+    service = commands.add_parser('start', help='Start the persistent proxy and dashboard')
+    service.add_argument('--port', type=int, default=20128)
+    service.add_argument('--no-browser', action='store_true')
     command = commands.add_parser("run", help="Enter connection details and launch a coding tool")
     command.add_argument("client", choices=["claude"])
+    command.add_argument('--direct', action='store_true', help=argparse.SUPPRESS)
     command.add_argument("--model", help=argparse.SUPPRESS)
     command.add_argument("--url", help="API root or /v1 URL (otherwise asked interactively)")
     command.add_argument("--api-format", choices=["openai", "anthropic"], help="Default: OpenAI-compatible")
@@ -145,12 +196,12 @@ def main(argv=None):
     if "--" in argv:
         separator = argv.index("--")
         argv, extra = argv[:separator], argv[separator + 1:]
-    args = parser().parse_args(argv or ["run", "claude"])
+    args = parser().parse_args(argv or ["start"])
     args.claude_args = extra
     try:
-        if not 0 <= args.port <= 65535 or args.timeout <= 0:
+        if not 0 <= args.port <= 65535 or getattr(args, 'timeout', 110) <= 0:
             raise BridgeError("Port must be 0–65535 and timeout must be positive")
-        return run(args)
+        return serve(args) if args.command == 'start' else run(args)
     except KeyboardInterrupt:
         print("\nAnviRoute stopped.", file=sys.stderr)
         return 130
