@@ -2,6 +2,8 @@
 
 AnviRoute's normal workflow is PC-only. It uses an existing API URL and bearer key. The upstream key is hidden during input, stays in memory, is not saved in config, and is removed from the Claude child environment. Only URL, model, and format are saved. Protect the URL too if you consider it sensitive.
 
+The single-file Windows download contains a compressed standard-library application and its per-user setup script. It uses your existing Python, installs no third-party packages, and verifies the embedded payload's SHA-256 before writing it. This checksum detects corruption; it is not a publisher signature. Download from the project's official GitHub releases.
+
 The local API binds to 127.0.0.1 and uses a random token per launch. It does not expose the upstream administration API. Public upstream URLs must be HTTPS; redirects are refused to avoid forwarding keys to a different origin. The upstream service and any TLS-terminating tunnel provider remain part of the trust boundary. This does not protect against malware running as your user.
 
 AnviRoute does not add authentication to your existing Kaggle server. An empty key works only if that server permits it. Protect the upstream separately. Browser login flows and custom Cloudflare Access authentication are not supported.

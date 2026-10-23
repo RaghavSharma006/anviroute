@@ -1,54 +1,57 @@
 [CmdletBinding()]
 param(
-    [string]$InstallRoot = (Join-Path $env:LOCALAPPDATA 'AnviRoute'),
+    [string]$InstallRoot = $(if ($env:ANVIROUTE_INSTALL_ROOT) { $env:ANVIROUTE_INSTALL_ROOT } else { Join-Path $env:LOCALAPPDATA 'AnviRoute' }),
     [string]$Python = 'python',
-    [switch]$SkipPathUpdate
+    [string]$PayloadBase64 = '',
+    [string]$PayloadHash = '',
+    [switch]$SkipPathUpdate = ($env:ANVIROUTE_SKIP_PATH_UPDATE -eq '1')
 )
 
 $ErrorActionPreference = 'Stop'
 try {
-    $projectSource = $PSScriptRoot
     $resolvedRoot = [IO.Path]::GetFullPath($InstallRoot)
-    $runtimeDir = Join-Path $resolvedRoot 'runtime'
     $binDir = Join-Path $resolvedRoot 'bin'
-    Write-Host "`nInstalling AnviRoute for your Windows account..." -ForegroundColor Cyan
-    & $Python -c 'import sys; assert sys.version_info >= (3, 10), "Python 3.10 or newer is required"'
-    if ($LASTEXITCODE -ne 0) { throw 'Install Python 3.10+ from https://www.python.org/downloads/windows/ and enable Add Python to PATH.' }
+    $appPath = Join-Path $resolvedRoot 'anviroute.pyz'
+    $pythonExecutable = $null
+    foreach ($candidate in (@($Python, 'py', 'python3') | Select-Object -Unique)) {
+        $command = Get-Command $candidate -ErrorAction SilentlyContinue
+        if (-not $command) { continue }
+        $probeArgs = @('-c', 'import sys; assert sys.version_info >= (3, 10); print(sys.executable)')
+        if ($candidate -eq 'py') { $probeArgs = @('-3') + $probeArgs }
+        $probe = & $command.Source @probeArgs 2>$null
+        if ($LASTEXITCODE -eq 0 -and $probe -and (Test-Path -LiteralPath ($probe | Select-Object -Last 1))) {
+            $pythonExecutable = ($probe | Select-Object -Last 1).Trim()
+            break
+        }
+    }
+    if (-not $pythonExecutable) { throw 'Python 3.10+ is required. Install it from python.org with Add Python to PATH enabled.' }
     New-Item -ItemType Directory -Path $resolvedRoot, $binDir -Force | Out-Null
-    if (-not (Test-Path -LiteralPath (Join-Path $runtimeDir 'Scripts\python.exe'))) {
-        & $Python -m venv $runtimeDir
-        if ($LASTEXITCODE -ne 0) { throw 'Could not create the private Python environment.' }
-    }
-    $runtimePython = Join-Path $runtimeDir 'Scripts\python.exe'
-    $releaseWheel = Get-ChildItem -LiteralPath (Join-Path $projectSource 'dist') -Filter 'anviroute-*.whl' -ErrorAction SilentlyContinue |
-        Sort-Object LastWriteTime -Descending | Select-Object -First 1
-    if ($releaseWheel) {
-        $installTarget = $releaseWheel.FullName
+    if ($PayloadBase64) {
+        $payloadBytes = [Convert]::FromBase64String($PayloadBase64)
+        $hasher = [Security.Cryptography.SHA256]::Create()
+        try { $actualHash = ([BitConverter]::ToString($hasher.ComputeHash($payloadBytes))).Replace('-', '').ToLowerInvariant() } finally { $hasher.Dispose() }
+        if (-not $PayloadHash -or $actualHash -ne $PayloadHash) { throw 'AnviRoute download is damaged; download it again.' }
+        [IO.File]::WriteAllBytes($appPath, $payloadBytes)
     } else {
-        $installTarget = $projectSource
+        $archivePath = Join-Path $PSScriptRoot 'dist\anviroute.pyz'
+        if (-not (Test-Path -LiteralPath $archivePath)) {
+            & $pythonExecutable (Join-Path $PSScriptRoot 'scripts\build_release.py')
+            if ($LASTEXITCODE -ne 0) { throw 'Could not package the local source.' }
+        }
+        Copy-Item -LiteralPath $archivePath -Destination $appPath -Force
     }
-    & $runtimePython -m pip install --disable-pip-version-check --no-deps --upgrade --force-reinstall $installTarget
-    if ($LASTEXITCODE -ne 0) { throw 'Package installation failed. Check internet access and Python installation.' }
-    $launcher = "@echo off`r`n`"$runtimePython`" -m anviroute %*`r`n"
+    & $pythonExecutable $appPath --version
+    if ($LASTEXITCODE -ne 0) { throw 'AnviRoute verification failed.' }
+    $launcher = "@echo off`r`n`"$pythonExecutable`" -B `"$appPath`" %*`r`n"
     [IO.File]::WriteAllText((Join-Path $binDir 'anviroute.cmd'), $launcher, [Text.Encoding]::Default)
     if (-not $SkipPathUpdate) {
         $userPathValue = [Environment]::GetEnvironmentVariable('Path', 'User')
         $entries = @($userPathValue -split ';' | Where-Object { $_ })
-        $alreadyPresent = @($entries | Where-Object { $_.TrimEnd('\') -ieq $binDir.TrimEnd('\') }).Count -gt 0
-        if (-not $alreadyPresent) {
+        if (@($entries | Where-Object { $_.TrimEnd('\') -ieq $binDir.TrimEnd('\') }).Count -eq 0) {
             [Environment]::SetEnvironmentVariable('Path', (($entries + $binDir) -join ';'), 'User')
         }
     }
-    & $runtimePython -m anviroute --version
-    if ($LASTEXITCODE -ne 0) { throw 'Installed package verification failed.' }
-    Write-Host "`nAnviRoute installed successfully." -ForegroundColor Green
-    Write-Host "Command folder: $binDir"
-    if (-not $SkipPathUpdate) {
-        Write-Host 'Close and reopen your terminal (restart VS Code if using its terminal).'
-        Write-Host 'Then, from ANY project folder, run: anviroute.cmd run claude'
-    }
-    Write-Host 'Claude Code must already be installed and available on PATH.'
-    exit 0
+    Write-Host 'AnviRoute ready. No pip, dependencies, or private Python environment needed.' -ForegroundColor Green
 } catch {
     Write-Error $_ -ErrorAction Continue
     exit 1

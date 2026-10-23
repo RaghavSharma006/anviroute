@@ -9,8 +9,7 @@ import urllib.request
 MAX_BODY = 16 * 1024 * 1024
 
 
-class BridgeError(Exception):
-    pass
+from anviroute.common import BridgeError
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):

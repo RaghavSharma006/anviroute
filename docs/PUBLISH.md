@@ -2,25 +2,19 @@
 
 Repository: https://github.com/RaghavSharma006/anviroute
 
-Description: `Paste your API URL and key, then launch Claude Code. A small local adapter for Ollama and OpenAI-compatible endpoints.`
+The primary release is one self-installing `AnviRoute.cmd`, with a tiny compressed Python zipapp embedded. It uses existing Python; no pip or virtual environment is installed. The normal flow is download → open → URL/key.
 
-Topics: `claude-code`, `ollama`, `kaggle`, `llm`, `python`, `developer-tools`, `api-proxy`.
-
-Publish source, tests, documentation, `anviroute.cmd`, package metadata, and the MIT license. Exclude credentials, `.env`, build caches, active session records, and local config. Put the source ZIP and wheel on a GitHub Release. Keep legacy notebooks clearly labeled as optional.
-
-Keep releases marked alpha until docs/LIVE_TEST.md has been completed with a real model. Record the tested model, GPU, API version, and Claude Code version. Add a real demo showing the command, the two prompts, `/status`, and an approved file edit. Hide keys and private URLs. Do not claim live compatibility based only on mocked tests.
-
-Build release assets with:
+Build and check:
 
 ```sh
-python scripts/build_docs.py
-python -m unittest discover -s tests -v
-python -m pip wheel --no-deps --wheel-dir dist .
 python scripts/build_release.py
+python scripts/build_docs.py
+python -m pip install -r requirements-dev.txt
+python -m unittest discover -s tests -v
 ```
 
-Upload dist/AnviRoute-Windows.zip, the versioned wheel, and SHA256SUMS.txt to the GitHub release. The README download URL uses the v0.2.0 tag; update docs/README.template.md for a future version and rebuild the docs.
+Commit and push after checks. Update local WORK_CHECKPOINT.md after every commit. Create a new version tag and upload `dist/AnviRoute.cmd`, `anviroute.pyz`, optional `AnviRoute-Windows.zip`, and `SHA256SUMS.txt`. Make the release latest so the README's stable download link resolves to the new command. Verify server asset SHA-256 digests and public downloads.
 
-There is no PyPI release. No hosted web deployment is needed for the normal local CLI workflow. Live Kaggle verification requires a running endpoint and credentials.
+Keep alpha status until docs/LIVE_TEST.md is completed with a real model. Record model/GPU/API/Claude versions. Never claim real inference passed based only on simulated tests.
 
-After any commit, update WORK_CHECKPOINT.md with its hash, verification, deployment status, and next steps.
+The source repository contains tests, docs, and Kaggle examples; those are intentionally excluded from the tiny runtime. There is no PyPI release and no hosted web deployment. Existing model hosting remains on Kaggle.

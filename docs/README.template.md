@@ -17,7 +17,7 @@ anviroute.cmd run claude
 Paste your **API URL** and **API key**. AnviRoute detects the model and starts Claude Code in your current project folder. No model argument. No provider combos. No GitHub discovery setup.
 
 <p align="center">
-  <a href="https://github.com/RaghavSharma006/anviroute/releases/download/v0.2.0/AnviRoute-Windows.zip"><strong>⬇ Download AnviRoute for Windows</strong></a>
+  <a href="https://github.com/RaghavSharma006/anviroute/releases/latest/download/AnviRoute.cmd"><strong>⬇ Download AnviRoute.cmd · about 16 KB</strong></a>
   &nbsp;·&nbsp;
   <a href="examples/kaggle_anviroute.ipynb">Kaggle setup notebook</a>
   &nbsp;·&nbsp;
@@ -46,37 +46,34 @@ API key (hidden; Enter if none):
 
 **Release status:** alpha. Automated tests cover the local adapter, launcher, and Kaggle proxy against simulated APIs. A real Kaggle inference session has not yet been verified for this release. Model/tool compatibility varies; complete the [live test](docs/LIVE_TEST.md) before relying on it.
 
-## 1. Install on Windows — once
+## 1. Download and open
 
-You need:
+**[Download AnviRoute.cmd](https://github.com/RaghavSharma006/anviroute/releases/latest/download/AnviRoute.cmd)** → **open it** → paste your URL and key.
 
-- **[Python 3.10+](https://www.python.org/downloads/windows/)**. Enable **Add Python to PATH** during installation.
-- **[Claude Code](https://code.claude.com/docs/en/overview)** installed and available as `claude`.
+That is the entire setup. The single file installs itself and starts Claude Code. No ZIP extraction, separate installer, pip, dependency downloads, or private Python environment.
 
-Check in Command Prompt:
+**Requirements:** your existing **[Python 3.10+](https://www.python.org/downloads/windows/)** and **[Claude Code](https://code.claude.com/docs/en/overview)**. The tiny download does not bundle either runtime. If Python is not installed yet, enable **Add Python to PATH** during its installation.
 
-```cmd
-python --version
-claude --version
-```
+| Footprint | Size |
+| --- | --- |
+| Single downloadable command | About **16 KB** |
+| Installed compressed application | About **9 KB** |
+| Third-party runtime dependencies | **None** |
+| Extra Python environments / pip installs | **None** |
 
-Then:
+Sizes exclude the Python and Claude Code installations you already have. The application uses Python's standard library; this is a disk/download measurement, not a RAM usage claim.
 
-1. [Download AnviRoute-Windows.zip](https://github.com/RaghavSharma006/anviroute/releases/download/v0.2.0/AnviRoute-Windows.zip).
-2. Right-click the ZIP → **Extract All**.
-3. In the extracted folder, double-click **`install.cmd`**. No administrator terminal is needed. Source ZIP users can run the same installer.
-4. Wait for **AnviRoute installed successfully**.
-5. **Close and reopen Command Prompt.** If using VS Code's integrated terminal, restart VS Code too.
+On first open, AnviRoute copies its tiny application into `%LOCALAPPDATA%\AnviRoute` and adds the command to your user PATH. It then starts immediately. You can delete the downloaded file after that.
 
-The installer creates an isolated Python environment and adds `%LOCALAPPDATA%\AnviRoute\bin` to your **user PATH**. It does not modify your system PATH. After installation, you can delete the extracted download; the installed runtime is self-contained apart from your Python installation.
-
-Verify from any folder:
+For later use, reopen your terminal in **your project folder** and run:
 
 ```cmd
-anviroute.cmd --version
+anviroute.cmd run claude
 ```
 
-To update, download a newer release and run its `install.cmd` again.
+That command works from any folder. If using VS Code's terminal, restart VS Code once after initial setup so it receives the updated PATH. Updating is equally simple: download and open the new file.
+
+Upgrading from v0.2? Its old `%LOCALAPPDATA%\AnviRoute\runtime` environment may remain on disk. The new launcher does not use it; it can be removed manually after verifying the new version works.
 
 ## 2. Start your Kaggle API
 
@@ -165,7 +162,7 @@ See [SECURITY.md](SECURITY.md) for trust boundaries and limitations. This adapte
 
 | Problem | Fix |
 | --- | --- |
-| `'anviroute.cmd' is not recognized` | Run `install.cmd`, close/reopen Command Prompt, and restart VS Code if needed. Check `%LOCALAPPDATA%\AnviRoute\bin\anviroute.cmd` exists. |
+| `'anviroute.cmd' is not recognized` | Open the downloaded `AnviRoute.cmd` once, reopen Command Prompt, and restart VS Code if needed. Check `%LOCALAPPDATA%\AnviRoute\bin\anviroute.cmd` exists. |
 | Python is not found | Install Python 3.10+ with **Add Python to PATH**, then reopen your terminal. |
 | Claude is not found | Install Claude Code and verify `claude --version`. |
 | API key looks like it is not pasting | Key entry is hidden; paste once and press Enter. |

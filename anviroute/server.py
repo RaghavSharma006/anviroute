@@ -1,9 +1,9 @@
 """Authenticated local API; complete JSON upstream, Anthropic SSE locally."""
 
-from http.server import ThreadingHTTPServer
+import hmac
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from kagglelink.client import LocalHandler
-from kagglelink.common import BridgeError, read_body, send_json
+from .common import BridgeError, read_body, send_json
 
 from .api import UpstreamError, events
 
@@ -16,7 +16,32 @@ class Server(ThreadingHTTPServer):
         super().__init__(("127.0.0.1", port), Handler)
 
 
-class Handler(LocalHandler):
+class Handler(BaseHTTPRequestHandler):
+    def setup(self):
+        super().setup()
+        self.connection.settimeout(45)
+
+    def log_message(self, *args):
+        pass
+
+    def authorized(self):
+        value = self.headers.get("Authorization", "")
+        if not value.isascii() or not hmac.compare_digest(value, "Bearer " + self.server.token):
+            send_json(self, 401, {"error": "Invalid local token"})
+            return False
+        return True
+
+    def do_GET(self):
+        if not self.authorized():
+            return
+        if self.path != "/v1/models":
+            send_json(self, 404, {"error": "Unknown route"})
+            return
+        model = self.server.model
+        send_json(self, 200, {"data": [{"id": model, "type": "model", "display_name": model,
+                                      "created_at": "2026-01-01T00:00:00Z"}],
+                              "has_more": False, "first_id": model, "last_id": model})
+
     def do_POST(self):
         if not self.authorized():
             return

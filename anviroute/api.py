@@ -7,7 +7,7 @@ import urllib.parse
 import urllib.request
 import uuid
 
-from kagglelink.common import BridgeError, MAX_BODY, NoRedirect
+from .common import BridgeError, MAX_BODY, NoRedirect
 
 
 def normalize_url(value):

@@ -11,8 +11,8 @@ import subprocess
 import sys
 import tempfile
 
-from kagglelink.cli import claude_environment, start_server
-from kagglelink.common import BridgeError
+from .runtime import claude_environment, start_server
+from .common import BridgeError
 
 from . import __version__
 from .api import API, UpstreamError, normalize_url
