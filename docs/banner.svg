@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-label="AnviRoute — Paste your API. Use Claude Code.">
+<defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#111c32"/><stop offset="1" stop-color="#080d18"/></linearGradient></defs>
+<rect width="1200" height="360" rx="24" fill="url(#bg)"/>
+<circle cx="1050" cy="80" r="165" fill="#60e9c8" opacity=".04"/>
+<rect x="58" y="55" width="115" height="28" rx="14" fill="#60e9c8" opacity=".12"/>
+<text x="75" y="74" fill="#60e9c8" font-family="monospace" font-size="12">OPEN SOURCE</text>
+<text x="58" y="154" fill="#f1f5fb" font-family="Segoe UI,Arial,sans-serif" font-size="66" font-weight="700">Anvi<tspan fill="#60e9c8">Route</tspan></text>
+<text x="60" y="199" fill="#aab8ce" font-family="Segoe UI,Arial,sans-serif" font-size="24">Paste your API. Use Claude Code.</text>
+<path d="M225 279H468M697 279H938" stroke="#40516c" stroke-width="2" stroke-dasharray="5 6"/>
+<g fill="#152238" stroke="#30445d"><rect x="60" y="249" width="180" height="60" rx="12"/><rect x="468" y="249" width="230" height="60" rx="12"/><rect x="938" y="249" width="202" height="60" rx="12"/></g>
+<g font-family="monospace" font-size="17" text-anchor="middle"><text x="150" y="285" fill="#e5edf9">Claude Code</text><text x="583" y="285" fill="#60e9c8">AnviRoute</text><text x="1039" y="285" fill="#e5edf9">Your API</text></g>
+</svg>

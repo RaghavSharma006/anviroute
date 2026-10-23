@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "anviroute"
+version = "0.2.0"
+description = "Paste your API URL and key, then launch Claude Code"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+keywords = ["ollama", "kaggle", "claude-code", "cloudflare", "llm"]
+classifiers = ["Development Status :: 3 - Alpha", "Programming Language :: Python :: 3", "Operating System :: OS Independent"]
+
+[project.scripts]
+anviroute = "anviroute.cli:main"
+kagglelink = "kagglelink.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["anviroute*", "kagglelink*"]
