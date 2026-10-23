@@ -129,6 +129,11 @@ else:
     quiet(["apt-get", "install", "-y", "-qq", "zstd"])
 
 # Keep the model API local; the second cell adds authentication before exposing it.
+# Re-running this cell applies settings to the Ollama process this notebook owns.
+previous_ollama = globals().get("ollama_proc")
+if isinstance(previous_ollama, subprocess.Popen) and previous_ollama.poll() is None:
+    previous_ollama.terminate()
+    previous_ollama.wait(timeout=30)
 try:
     requests.get(OLLAMA + "/api/tags", timeout=3).raise_for_status()
 except requests.RequestException:
@@ -230,6 +235,12 @@ def stop_previous(name, expected_command):
         pass
 
 
+# Also supports upgrading older cells that did not write PID files.
+for process_name in ("proxy_proc", "tunnel_proc"):
+    previous = globals().get(process_name)
+    if isinstance(previous, subprocess.Popen) and previous.poll() is None:
+        previous.terminate()
+        previous.wait(timeout=30)
 stop_previous("proxy", WORK + "/proxy.py")
 stop_previous("tunnel", CF + " tunnel")
 time.sleep(2)

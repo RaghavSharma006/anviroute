@@ -26,6 +26,11 @@ else:
     quiet(["apt-get", "install", "-y", "-qq", "zstd"])
 
 # Keep the model API local; the second cell adds authentication before exposing it.
+# Re-running this cell applies settings to the Ollama process this notebook owns.
+previous_ollama = globals().get("ollama_proc")
+if isinstance(previous_ollama, subprocess.Popen) and previous_ollama.poll() is None:
+    previous_ollama.terminate()
+    previous_ollama.wait(timeout=30)
 try:
     requests.get(OLLAMA + "/api/tags", timeout=3).raise_for_status()
 except requests.RequestException:

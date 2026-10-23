@@ -45,6 +45,12 @@ def stop_previous(name, expected_command):
         pass
 
 
+# Also supports upgrading older cells that did not write PID files.
+for process_name in ("proxy_proc", "tunnel_proc"):
+    previous = globals().get(process_name)
+    if isinstance(previous, subprocess.Popen) and previous.poll() is None:
+        previous.terminate()
+        previous.wait(timeout=30)
 stop_previous("proxy", WORK + "/proxy.py")
 stop_previous("tunnel", CF + " tunnel")
 time.sleep(2)
