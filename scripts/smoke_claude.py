@@ -53,12 +53,12 @@ def main():
     start_server(upstream)
     profile_folder = tempfile.TemporaryDirectory(prefix='AnviRoute-Router-Smoke-')
     local = Router(0, profile_folder.name)
-    local.control('save', {'name': 'smoke', 'url': f'http://127.0.0.1:{upstream.server_port}', 'key': 'fake-key', 'model': MODEL})
-    local.control('check', {})
+    saved = local.control('connect', {'name': 'smoke', 'url': f'http://127.0.0.1:{upstream.server_port}', 'key': 'fake-key', 'model': MODEL})
+    assert saved['ready']
     start_server(local)
     try:
         with tempfile.TemporaryDirectory(prefix='AnviRoute-Claude-Smoke-') as folder:
-            env = claude_environment(f'http://127.0.0.1:{local.server_port}', MODEL, local.token)
+            env = claude_environment(f'http://127.0.0.1:{local.server_port}/p/{saved["id"]}', MODEL, local.token)
             env['CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC'] = '1'
             settings = Path(folder) / 'settings.json'
             settings.write_text(json.dumps({'env': {'ANTHROPIC_BASE_URL': env['ANTHROPIC_BASE_URL'],

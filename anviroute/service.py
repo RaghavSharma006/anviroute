@@ -49,6 +49,7 @@ class Router(Server):
         self.api = None
         self.model = ''
         self.checked = False
+        self.ready_profiles = {}
         self.last_error = None
         try:
             saved = json.loads((self.folder/'providers.json').read_text())
@@ -134,6 +135,40 @@ class Router(Server):
     def control(self, action, data):
         if any(not isinstance(v, str) for k, v in data.items() if k in ('id', 'name', 'url', 'key', 'model', 'format')):
             raise BridgeError('Configuration fields must be text')
+        if action == 'connect':
+            with self.lock:
+                result = self.mutate('save', data)
+                self.activate(result['id'])
+                name = self.profiles[result['id']]['name']
+            try:
+                self.control('prepare', {'name': name})
+                return {**result, 'ready': True, 'message': 'Saved and ready for Claude'}
+            except BridgeError as exc:
+                self.upstream = str(exc)
+                self.record('upstream', str(exc), False, getattr(exc, 'status', None))
+                return {**result, 'ready': False, 'message': 'Saved. ' + str(exc)}
+        if action == 'prepare':
+            with self.lock:
+                p = next((p for p in self.profiles.values() if p['name'].casefold() == data.get('name', '').casefold()), None)
+                if p is None:
+                    raise BridgeError('Saved model name not found. Add it in AnviRoute first.')
+                identifier = p['id']
+                api = self.ready_profiles.get(identifier)
+                if api is None:
+                    api = API(p['url'], p['key'], p['model'], p['format'])
+            if identifier not in self.ready_profiles:
+                self.verify(api)
+                with self.lock:
+                    if self.profiles.get(identifier) is not p:
+                        raise BridgeError('Connection changed during the check. Run the command again.')
+                    p.update(model=api.model, format=api.format)
+                    self.ready_profiles[identifier] = api
+                    if self.active == identifier:
+                        self.api, self.model = api, api.model
+                        self.checked = True
+                        self.upstream = 'Authentication, model and inference OK'
+                    self.persist()
+            return {'model': api.model, 'path': '/p/' + identifier, 'ready': True}
         if action in ('save', 'activate', 'remove', 'model'):
             with self.lock:
                 return self.mutate(action, data)
@@ -151,14 +186,7 @@ class Router(Server):
                 if self.api is api:
                     self.checked = False
             self.record('upstream', 'Checking authentication and model list')
-            models = self.models(api)
-            if not models:
-                raise BridgeError('API returned no models')
-            if api.model and api.model not in models:
-                raise BridgeError('Saved model is unavailable. Discover models and select an available model.')
-            if not api.model:
-                api.model = models[0]
-            api.check()
+            self.verify(api)
             with self.lock:
                 if self.api is api:
                     self.model = api.model
@@ -166,9 +194,21 @@ class Router(Server):
                     self.persist()
                     self.upstream = 'Authentication, model and inference OK'
                     self.checked = True
+                    self.ready_profiles[identifier] = api
             self.record('upstream', 'Authentication, model and inference OK', status=200)
             return {'message': 'API and model inference OK', 'model': api.model}
         raise BridgeError('Unknown control action')
+
+    @staticmethod
+    def verify(api):
+        models = Router.models(api)
+        if not models:
+            raise BridgeError('API returned no models')
+        if api.model and api.model not in models:
+            raise BridgeError('Saved model is unavailable. Edit its model ID or leave it blank to detect.')
+        if not api.model:
+            api.model = models[0]
+        api.check()
 
     @staticmethod
     def models(api):
@@ -179,6 +219,7 @@ class Router(Server):
         if action == 'save':
             identifier = data.get('id') or secrets.token_hex(8)
             previous = self.profiles.get(identifier, {})
+            self.ready_profiles.pop(identifier, None)
             name = data.get('name', 'API').strip()[:80]
             if not name or any(p['name'].casefold() == name.casefold() and p['id'] != identifier for p in self.profiles.values()):
                 raise BridgeError('Use a unique profile name')
@@ -197,6 +238,7 @@ class Router(Server):
             return {'ok': True}
         if action == 'remove':
             identifier = data.get('id')
+            self.ready_profiles.pop(identifier, None)
             self.profiles.pop(identifier, None)
             if self.active == identifier:
                 self.active, self.api, self.model = None, None, ''
@@ -209,12 +251,26 @@ class Router(Server):
             if not selected:
                 raise BridgeError('Choose a model')
             self.profiles[self.active]['model'] = selected
+            self.ready_profiles.pop(self.active, None)
             self.activate(self.active)
             return {'ok': True}
         raise BridgeError('Unknown control action')
 
 
 class DashboardHandler(Handler):
+    def route_path(self):
+        path = urlsplit(self.path).path
+        return '/' + path.split('/', 3)[3] if path.startswith('/p/') and len(path.split('/', 3)) == 4 else path
+
+    def request_api(self):
+        path = urlsplit(self.path).path
+        if path.startswith('/p/'):
+            identifier = path.split('/', 3)[2]
+            with self.server.lock:
+                p = self.server.profiles.get(identifier)
+                return API(p['url'], p['key'], p['model'], p['format']) if p else None
+        return self.server.api
+
     def safe_origin(self):
         allowed = {f'127.0.0.1:{self.server.server_port}', f'localhost:{self.server.server_port}'}
         if self.headers.get('Host') not in allowed:
@@ -230,7 +286,7 @@ class DashboardHandler(Handler):
         if not self.safe_origin():
             return
         path = urlsplit(self.path).path
-        if path in ('/', '/connections', '/logs'):
+        if path in ('/', '/overview', '/connections', '/logs'):
             body = HTML.replace('__TOKEN__', json.dumps(self.server.token)).encode()
             self.send_response(200)
             self.send_header('Content-Type', 'text/html; charset=utf-8')
@@ -269,7 +325,8 @@ class DashboardHandler(Handler):
                 return
             self.server.client_seen = datetime.now().strftime('%H:%M:%S')
             self.server.record('client', 'Claude request received')
-            if not self.server.api or not self.server.model:
+            api = self.request_api()
+            if not api or not api.model:
                 send_json(self, 503, {'error': {'type': 'api_error', 'message': 'Configure and check an API in the AnviRoute dashboard'}})
                 return
             super().do_POST()

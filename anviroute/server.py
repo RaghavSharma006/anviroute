@@ -32,6 +32,12 @@ class Server(ThreadingHTTPServer):
 
 
 class Handler(BaseHTTPRequestHandler):
+    def route_path(self):
+        return urlsplit(self.path).path
+
+    def request_api(self):
+        return self.server.api
+
     def setup(self):
         super().setup()
         self.connection.settimeout(45)
@@ -49,10 +55,14 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if not self.authorized():
             return
-        if urlsplit(self.path).path != "/v1/models":
+        if self.route_path() != "/v1/models":
             send_json(self, 404, {"error": "Unknown route"})
             return
-        model = self.server.model
+        api = self.request_api()
+        if api is None:
+            send_json(self, 503, {'error': 'Saved model is unavailable'})
+            return
+        model = api.model
         send_json(self, 200, {"data": [{"id": model, "type": "model", "display_name": model,
                                       "created_at": "2026-01-01T00:00:00Z"}],
                               "has_more": False, "first_id": model, "last_id": model})
@@ -60,12 +70,14 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not self.authorized():
             return
-        path = urlsplit(self.path).path
+        path = self.route_path()
         if path not in ("/v1/messages", "/v1/messages/count_tokens"):
             send_json(self, 404, {"error": "Unknown route"})
             return
         try:
-            api = self.server.api
+            api = self.request_api()
+            if api is None:
+                raise BridgeError('Saved model was removed. Open AnviRoute and add it again.')
             payload = read_body(self)
             if not isinstance(payload, dict):
                 raise BridgeError("Expected a JSON object")

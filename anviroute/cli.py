@@ -18,6 +18,16 @@ import threading
 
 
 def serve(args):
+    # Reopening the frontend should reuse the running router.
+    try:
+        connection, state = local_service()
+        if connection['url'] == f'http://127.0.0.1:{args.port}':
+            if not args.no_browser:
+                webbrowser.open(connection['url'])
+            print('AnviRoute: ' + connection['url'], flush=True)
+            return 0
+    except BridgeError:
+        pass
     server = Router(args.port)
     if args.modelname:
         try:
@@ -27,7 +37,7 @@ def serve(args):
             raise
     descriptor = data_dir() / 'service.json'
     write_private(descriptor, {'url': server.address, 'token': server.token})
-    print(f'AnviRoute service: {server.address}\nConfigure APIs in the dashboard. Keep this terminal open.\nSecond terminal: anviroute.cmd run claude', flush=True)
+    print(f'AnviRoute: {server.address}\nSave your model in the browser. Keep this terminal open.\nSecond terminal: anviroute run claude --modename NAME', flush=True)
     if server.api:
         start_server_thread = threading.Thread(target=server.check_background, daemon=True)
         start_server_thread.start()
@@ -45,10 +55,7 @@ def serve(args):
             pass
 
 
-def run(args):
-    executable = shutil.which('claude')
-    if not executable:
-        raise BridgeError('Claude Code is not on PATH')
+def local_service():
     try:
         connection = json.loads((data_dir() / 'service.json').read_text())
         base = connection['url']
@@ -59,12 +66,33 @@ def run(args):
         with urlopen(req, timeout=5) as response:
             state = json.load(response)
     except (OSError, ValueError, KeyError):
-        raise BridgeError('AnviRoute service is not running. In the first terminal run: anviroute.cmd start') from None
+        raise BridgeError('Open the frontend first: anviroute') from None
+    if state.get('product') != 'AnviRoute':
+        raise BridgeError('The local service is not AnviRoute')
+    return connection, state
+
+
+def run(args):
+    executable = shutil.which('claude')
+    if not executable:
+        raise BridgeError('Claude Code is not on PATH')
+    connection, state = local_service()
+    base = connection['url']
+    if args.modename:
+        req = Request(base + '/control/prepare', data=json.dumps({'name': args.modename}).encode(),
+                      headers={'Authorization': 'Bearer ' + connection['token'], 'Content-Type': 'application/json'})
+        try:
+            with urlopen(req, timeout=125) as response:
+                selected = json.load(response)
+        except OSError:
+            raise BridgeError(f'Cannot connect to saved model {args.modename!r}. Open {base} and update its Kaggle URL/key.') from None
+        base += selected['path']
+        state.update(model=selected['model'], ready=selected['ready'])
     if state.get('product') != 'AnviRoute' or not state.get('ready'):
-        raise BridgeError(f'Open {base}, add/activate an API, and click Check API and model first')
+        raise BridgeError('Open AnviRoute and save your model with its current URL/key.')
     env = claude_environment(base, state['model'], connection['token'])
     env['CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC'] = '1'
-    print(f"Claude -> {base} -> {state['model']}\nDiagnostics: {base}", flush=True)
+    print(f"Claude -> {base} -> {state['model']}\nDiagnostics: {connection['url']}", flush=True)
     return subprocess.call([executable, '--model', state['model'], *args.claude_args], env=env)
 
 
@@ -78,6 +106,7 @@ def parser():
     service.add_argument('--modelname', help='Saved profile name to activate and check at startup')
     command = commands.add_parser("run", help="Connect Claude Code to the running AnviRoute service")
     command.add_argument("client", choices=["claude"])
+    command.add_argument('--modename', '--modelname', help='Saved model name from the frontend')
     return root
 
 

@@ -10,28 +10,30 @@
 <h1 align="center">AnviRoute</h1>
 <p align="center"><strong>Your Kaggle model. Your Claude Code. One command.</strong></p>
 
-```cmd
-anviroute.cmd run claude
-```
+Two commands. One saved model name.
 
-Start the proxy in one terminal, configure it in your browser, then connect Claude from another terminal.
+**1. Open the frontend:**
 
 ```cmd
-anviroute.cmd start
+anviroute
 ```
 
-Open **http://127.0.0.1:20128**. Add API URL/key, activate the connection, and click **Check API and model**. Add other API connections or switch models from this dashboard.
+Name your model (for example `qwen`), paste your Kaggle output, and click **Save & connect**. AnviRoute extracts the URL/key, detects the model, and checks the connection automatically.
 
-In a second terminal inside your project:
+**2. In another terminal, from any project folder:**
 
 ```cmd
-anviroute.cmd run claude
+anviroute run claude --modename qwen
 ```
 
-The first terminal keeps the service running. The second runs Claude without asking for API credentials. The dashboard separates Claude → AnviRoute, adapter, and AnviRoute → Kaggle/API diagnostics. Windows saves API keys encrypted for your Windows account. Other platforms keep keys in memory only.
+**Kaggle restarted?** Paste the new output into the saved model's update box and click **Update & reconnect**. Keep the same name and Claude command. No separate activation or manual check step. Existing named routes use the updated address on the next request.
+
+Windows encrypts saved API keys for your account. Other platforms keep keys in memory only.
+
+![Two-command setup and quick session updates](docs/quick-setup.png)
 
 <p align="center">
-  <a href="https://github.com/RaghavSharma006/anviroute/releases/latest/download/AnviRoute.cmd"><strong>⬇ Download AnviRoute.cmd · about 30 KB</strong></a>
+  <a href="https://github.com/RaghavSharma006/anviroute/releases/latest/download/AnviRoute.cmd"><strong>⬇ Download AnviRoute.cmd · about 32 KB</strong></a>
   &nbsp;·&nbsp;
   <a href="examples/kaggle_anviroute.ipynb">Kaggle setup notebook</a>
   &nbsp;·&nbsp;
@@ -58,8 +60,8 @@ That is the entire setup. The single file installs itself and starts the local d
 
 | Footprint | Size |
 | --- | --- |
-| Single downloadable command | About **30 KB** |
-| Installed compressed application | About **19 KB** |
+| Single downloadable command | About **32 KB** |
+| Installed compressed application | About **21 KB** |
 | Third-party runtime dependencies | **None** |
 | Extra Python environments / pip installs | **None** |
 
@@ -70,7 +72,7 @@ On first open, AnviRoute copies its tiny application into `%LOCALAPPDATA%\AnviRo
 For later use, reopen your terminal in **your project folder** and run:
 
 ```cmd
-anviroute.cmd run claude
+anviroute run claude --modename qwen
 ```
 
 That command works from any folder. If using VS Code's terminal, restart VS Code once after initial setup so it receives the updated PATH. Updating is equally simple: download and open the new file.
@@ -130,26 +132,13 @@ Copy **Base URL** and **API key**. Keep Kaggle running. Do not publish the noteb
 
 ## 3. Two-terminal workflow
 
-**Terminal 1:** `anviroute.cmd start` opens the dashboard at **http://127.0.0.1:20128**. Keep it open. Add a named API connection, paste URL/key, activate it, and click **Check API and model**. The dashboard can discover models, select a model, and switch API connections.
+Keep `anviroute` running in terminal 1. It opens **http://127.0.0.1:20128** with the model setup form. Enter a saved name and paste the Kaggle output; **Save & connect** handles model detection and inference checks together.
 
-**Terminal 2:** open your project folder and run `anviroute.cmd run claude`. Claude attaches to the already running local proxy. No URL/key or model prompt appears in this terminal.
+In terminal 2, run `anviroute run claude --modename qwen` from your project. Replace `qwen` with your saved name. Each named Claude session keeps its own route even when another saved model is selected in the dashboard.
 
-Watch the dashboard's connection path and diagnostics when troubleshooting. Updating an API URL or switching providers affects subsequent requests; in-flight requests stay with their original provider. Restart Claude when changing model capabilities/context expectations.
+When Kaggle regenerates the URL/key, paste its new output into the saved model's update box and click **Update & reconnect**. No need to recreate the model or change the Claude command. Keep your Kaggle notebook private because its output includes a credential. AnviRoute cannot discover a random tunnel URL without receiving the new address.
 
-Give the connection a unique name, for example `kaggle-qwen`. Windows encrypts the saved API key with DPAPI, tied to your Windows account. Restart with the saved profile:
-
-```cmd
-anviroute.cmd start --modelname kaggle-qwen
-```
-
-From the source folder, the equivalent is:
-
-```cmd
-cd /d D:\omnirouteSpecial
-python -m anviroute start --modelname kaggle-qwen
-```
-
-Startup restores and checks the active profile in the background. Wait for **Connection verified**, then start Claude in terminal 2. Other platforms require entering the key again after restart. The dashboard is loopback-only and its control API requires a local session token and same-origin browser requests.
+Opening `anviroute` again reuses the running router and opens the frontend. Windows credentials restore after restart. Other platforms require entering the key again.
 
 ### Error logs and design
 
@@ -186,17 +175,9 @@ See [SECURITY.md](SECURITY.md) for trust boundaries and limitations. This adapte
 | HTTP 429 | Provider/tunnel rate limit; wait before retrying. |
 | Still connects to OmniRoute | Check Claude settings for conflicting `ANTHROPIC_BASE_URL`, provider flags, or `apiKeyHelper`. AnviRoute does not edit existing settings. |
 
-## Optional settings
+## Other platforms
 
-The everyday command stays `anviroute.cmd run claude`. These flags are only for special cases:
-
-```cmd
-anviroute.cmd start --port 20129
-anviroute.cmd start --modelname kaggle-qwen --no-browser
-anviroute.cmd run claude -- -p "Explain this project"
-```
-
-Other platforms can install from source with `python -m pip install .`, then run `python -m anviroute run claude`. The Windows PATH installer is specifically for Windows.
+Install from source with `python -m pip install .`, then use the same two commands. The single-download installer is for Windows.
 
 ## Development and contributing
 

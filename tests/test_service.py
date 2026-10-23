@@ -6,12 +6,14 @@ import tempfile
 import unittest
 from unittest.mock import patch
 import urllib.request
+from http.server import ThreadingHTTPServer
 
 from anviroute.cli import main
 from anviroute.service import Router
 from anviroute.runtime import start_server
 from anviroute.common import BridgeError
 from helpers import request
+from test_anviroute import FakeAPI
 
 
 class ServiceTests(unittest.TestCase):
@@ -119,3 +121,60 @@ class ServiceTests(unittest.TestCase):
              patch('builtins.input', side_effect=AssertionError('No connection prompts in terminal 2')):
             self.assertEqual(main(['run', 'claude']), 0)
             self.assertEqual(child.call_args.kwargs['env']['ANTHROPIC_BASE_URL'], self.url)
+
+    def test_one_click_connect_named_launch_and_regenerated_url(self):
+        class Model(FakeAPI):
+            last_port = None
+
+            def do_POST(self):
+                Model.last_port = self.server.server_port
+                super().do_POST()
+
+        upstreams = [ThreadingHTTPServer(('127.0.0.1', 0), Model) for _ in range(2)]
+        for upstream in upstreams:
+            start_server(upstream)
+        try:
+            urls = [f'http://127.0.0.1:{s.server_port}' for s in upstreams]
+            saved = self.control('connect', {'name': 'qwen', 'url': urls[0], 'key': 'upstream-secret', 'model': ''})
+            self.assertTrue(saved['ready'])
+            self.assertEqual(self.router.model, 'test-coder')
+            # Another model becoming active must not change a named Claude session.
+            self.control('save', {'name': 'other', 'url': urls[1], 'key': 'upstream-secret', 'model': 'other-model'})
+            other = next(p['id'] for p in self.router.profiles.values() if p['name'] == 'other')
+            self.control('activate', {'id': other})
+            descriptor = Path(self.temp.name)/'service.json'
+            descriptor.write_text(json.dumps({'url': self.url, 'token': self.router.token}))
+
+            def child(command, env):
+                self.assertEqual(command[1:3], ['--model', 'test-coder'])
+                self.assertEqual(env['ANTHROPIC_BASE_URL'], self.url + '/p/' + saved['id'])
+                result = request(env['ANTHROPIC_BASE_URL'] + '/v1/messages?beta=true', env['ANTHROPIC_AUTH_TOKEN'], {'messages': [{'role': 'user', 'content': 'Hello'}]})
+                self.assertEqual(result['stop_reason'], 'tool_use')
+                return 0
+
+            with patch('anviroute.cli.data_dir', return_value=Path(self.temp.name)), patch('anviroute.cli.shutil.which', return_value='claude'), patch('anviroute.cli.subprocess.call', side_effect=child):
+                self.assertEqual(main(['run', 'claude', '--modename', 'qwen']), 0)
+            self.assertEqual(Model.last_port, upstreams[0].server_port)
+            # Same saved name and route pick up regenerated URL/key in one operation.
+            updated = self.control('connect', {'id': saved['id'], 'name': 'qwen', 'url': urls[1], 'key': 'upstream-secret', 'model': 'test-coder'})
+            self.assertTrue(updated['ready'])
+            request(self.url + '/p/' + saved['id'] + '/v1/messages', self.router.token, {'messages': [{'role': 'user', 'content': 'Hello'}]})
+            self.assertEqual(Model.last_port, upstreams[1].server_port)
+        finally:
+            for upstream in upstreams:
+                upstream.shutdown()
+                upstream.server_close()
+
+    def test_failed_connection_is_saved_for_quick_correction(self):
+        with patch('anviroute.service.API.call', side_effect=BridgeError('Upstream HTTP 401')):
+            result = self.control('connect', {'name': 'fix-me', 'url': 'https://example.com', 'key': 'wrong'})
+        self.assertFalse(result['ready'])
+        self.assertIn(result['id'], self.router.profiles)
+        self.assertIn('401', result['message'])
+
+    def test_bare_command_reopens_running_frontend(self):
+        descriptor = Path(self.temp.name)/'service.json'
+        descriptor.write_text(json.dumps({'url': self.url, 'token': self.router.token}))
+        with patch('anviroute.cli.data_dir', return_value=Path(self.temp.name)), patch('anviroute.cli.webbrowser.open') as browser, patch('anviroute.cli.Router', side_effect=AssertionError('Must reuse existing service')):
+            self.assertEqual(main(['start', '--port', str(self.router.server_port)]), 0)
+            browser.assert_called_once_with(self.url)
