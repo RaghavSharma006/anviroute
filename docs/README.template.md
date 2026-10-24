@@ -207,3 +207,5 @@ Quick Tunnels do not support SSE, so replies are buffered until generation finis
 References: [Ollama memory and concurrency](https://docs.ollama.com/faq), [Claude context guidance](https://docs.ollama.com/integrations/claude-code), [Quick Tunnel limitations](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/).
 
 Set **Context window (tokens)** under the saved model’s optional settings to the context configured in Ollama (32768 with this notebook). AnviRoute passes it to Claude Code so compaction does not assume a 200K window for an unknown model. Leave blank only when Claude already knows the provider’s correct limit.
+
+Paste accepts the usual Kaggle output, a URL and key on separate lines, `API_KEY=...`, `Token: ...`, JSON, or an Authorization Bearer header. Each saved model also has a separate API key field. You can update only the key; URL-only updates explicitly show **keep saved key**. Ambiguous or empty labelled keys produce an error instead of silently replacing credentials.
