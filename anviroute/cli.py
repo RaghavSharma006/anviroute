@@ -16,9 +16,59 @@ from urllib.request import Request, urlopen
 from urllib.error import HTTPError
 import webbrowser
 import threading
+import time
+from pathlib import Path
+
+
+def ensure_service(port=20128):
+    """Reuse the per-user router, or start it independently of this terminal."""
+    try:
+        return local_service()
+    except BridgeError:
+        pass
+    entry = Path(sys.argv[0]).resolve()
+    if entry.suffix == '.pyz':
+        command = [sys.executable, '-B', str(entry)]
+    else:
+        command = [sys.executable, '-B', '-m', 'anviroute']
+    command += ['start', '--foreground', '--no-browser', '--port', str(port)]
+    options = {'cwd': str(Path(__file__).resolve().parent.parent),
+               'stdin': subprocess.DEVNULL, 'stdout': subprocess.DEVNULL,
+               'stderr': subprocess.DEVNULL}
+    if entry.suffix == '.pyz':
+        options['cwd'] = str(entry.parent)
+    if os.name == 'nt':
+        options['creationflags'] = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+    else:
+        options['start_new_session'] = True
+    child = subprocess.Popen(command, **options)
+    for _ in range(100):
+        try:
+            return local_service()
+        except BridgeError:
+            if child.poll() is not None:
+                break
+            time.sleep(.1)
+    # A simultaneous launcher may have won the bind race.
+    try:
+        return local_service()
+    except BridgeError:
+        raise BridgeError(f'Could not start AnviRoute on port {port}. Check whether another app is using that port.') from None
 
 
 def serve(args):
+    if not args.foreground:
+        connection, _ = ensure_service(args.port)
+        if args.modelname:
+            req = Request(connection['url'] + '/control/prepare',
+                          data=json.dumps({'name': args.modelname}).encode(),
+                          headers={'Authorization': 'Bearer ' + connection['token'], 'Content-Type': 'application/json'})
+            with urlopen(req, timeout=125) as response:
+                json.load(response)
+        if not args.no_browser:
+            webbrowser.open(connection['url'])
+        print('AnviRoute: ' + connection['url'] + '\nRunning independently in the background. You can close this terminal.', flush=True)
+        return 0
     # Reopening the frontend should reuse the running router.
     try:
         connection, state = local_service()
@@ -37,7 +87,7 @@ def serve(args):
             server.server_close()
             raise
     descriptor = data_dir() / 'service.json'
-    write_private(descriptor, {'url': server.address, 'token': server.token})
+    write_private(descriptor, {'url': server.address, 'token': server.token, 'pid': os.getpid()})
     print(f'AnviRoute: {server.address}\nSave your model in the browser. Keep this terminal open.\nSecond terminal: anviroute run claude --modename NAME', flush=True)
     if server.api:
         start_server_thread = threading.Thread(target=server.check_background, daemon=True)
@@ -77,10 +127,11 @@ def run(args):
     executable = shutil.which('claude')
     if not executable:
         raise BridgeError('Claude Code is not on PATH')
-    connection, state = local_service()
+    connection, state = ensure_service()
     base = connection['url']
-    if args.modename:
-        req = Request(base + '/control/prepare', data=json.dumps({'name': args.modename}).encode(),
+    name = args.modename or (None if state.get('ready') else next((p['name'] for p in state.get('providers', []) if p['id'] == state.get('active')), None))
+    if name:
+        req = Request(base + '/control/prepare', data=json.dumps({'name': name}).encode(),
                       headers={'Authorization': 'Bearer ' + connection['token'], 'Content-Type': 'application/json'})
         try:
             with urlopen(req, timeout=125) as response:
@@ -94,7 +145,7 @@ def run(args):
                 exc.close()
             raise BridgeError(f'{detail}. Diagnostics: {base}') from None
         except OSError:
-            raise BridgeError(f'Cannot connect to saved model {args.modename!r}. Open {base} and update its Kaggle URL/key.') from None
+            raise BridgeError(f'Cannot connect to saved model {name!r}. Open {base} and update its Kaggle URL/key.') from None
         base += selected['path']
         state.update(model=selected['model'], ready=selected['ready'], context_tokens=selected.get('context_tokens', 0))
     if state.get('product') != 'AnviRoute' or not state.get('ready'):
@@ -113,6 +164,7 @@ def parser():
     commands = root.add_subparsers(dest="command", required=True)
     service = commands.add_parser('start', help='Start the persistent proxy and dashboard')
     service.add_argument('--port', type=int, default=20128)
+    service.add_argument('--foreground', action='store_true', help=argparse.SUPPRESS)
     service.add_argument('--no-browser', action='store_true')
     service.add_argument('--modelname', help='Saved profile name to activate and check at startup')
     command = commands.add_parser("run", help="Connect Claude Code to the running AnviRoute service")

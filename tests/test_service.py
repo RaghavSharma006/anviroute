@@ -174,6 +174,12 @@ class ServiceTests(unittest.TestCase):
              patch('builtins.input', side_effect=AssertionError('No connection prompts in terminal 2')):
             self.assertEqual(main(['run', 'claude']), 0)
             self.assertEqual(child.call_args.kwargs['env']['ANTHROPIC_BASE_URL'], self.url)
+            token = child.call_args.kwargs['env']['ANTHROPIC_AUTH_TOKEN']
+            with patch('anviroute.cli.subprocess.Popen', side_effect=AssertionError('Must reuse router')):
+                self.assertEqual(main(['run', 'claude']), 0)
+            self.assertEqual(child.call_args.kwargs['env']['ANTHROPIC_BASE_URL'], self.url)
+            self.assertEqual(child.call_args.kwargs['env']['ANTHROPIC_AUTH_TOKEN'], token)
+            self.assertNotIn('cwd', child.call_args.kwargs)
 
     def test_one_click_connect_named_launch_and_regenerated_url(self):
         class Model(FakeAPI):

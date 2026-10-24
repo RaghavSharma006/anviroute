@@ -14,7 +14,7 @@ def build():
     output = ROOT / 'dist'
     output.mkdir(exist_ok=True)
     app = output / 'anviroute.pyz'
-    with zipfile.ZipFile(app, 'w', zipfile.ZIP_DEFLATED) as bundle:
+    with zipfile.ZipFile(app, 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as bundle:
         bundle.writestr('__main__.py', 'from anviroute.cli import main\nraise SystemExit(main())\n')
         for source in sorted((ROOT / 'anviroute').glob('*.py')):
             bundle.write(source, 'anviroute/' + source.name)
@@ -46,7 +46,7 @@ __PAYLOAD__
     command.write_bytes(bootstrap.replace('\n', '\r\n').encode('utf-8'))
     # The optional ZIP has only the app, installer, and license, not developer files.
     archive = output / 'AnviRoute-Windows.zip'
-    with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as bundle:
+    with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED, compresslevel=9) as bundle:
         for path, name in ((command, 'AnviRoute.cmd'), (ROOT / 'LICENSE', 'LICENSE')):
             bundle.write(path, 'AnviRoute/' + name)
     checksums = output / 'SHA256SUMS.txt'

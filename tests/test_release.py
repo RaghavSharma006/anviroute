@@ -1,5 +1,9 @@
 import base64
 import hashlib
+import json
+import signal
+import time
+import urllib.request
 import os
 from pathlib import Path
 import re
@@ -38,6 +42,29 @@ class LightweightReleaseTests(unittest.TestCase):
                                     cwd=folder, capture_output=True, text=True, timeout=20)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.strip(), __version__)
+
+    def test_detached_service_reused_from_another_folder(self):
+        with tempfile.TemporaryDirectory() as folder:
+            env = {**os.environ, 'LOCALAPPDATA': folder}
+            other = Path(folder) / 'project'
+            other.mkdir()
+            command = [sys.executable, str(ROOT / 'dist/anviroute.pyz'), 'start', '--port', '0', '--no-browser']
+            descriptor = Path(folder) / 'AnviRoute/service.json'
+            info = None
+            try:
+                first = subprocess.run(command, cwd=folder, env=env, capture_output=True, text=True, timeout=20)
+                self.assertEqual(first.returncode, 0, first.stderr)
+                info = json.loads(descriptor.read_text())
+                second = subprocess.run(command, cwd=other, env=env, capture_output=True, text=True, timeout=20)
+                self.assertEqual(second.returncode, 0, second.stderr)
+                self.assertEqual(json.loads(descriptor.read_text()), info)
+                req = urllib.request.Request(info['url'] + '/control/status', headers={'Authorization': 'Bearer ' + info['token']})
+                with urllib.request.urlopen(req, timeout=5) as response:
+                    self.assertEqual(json.load(response)['product'], 'AnviRoute')
+            finally:
+                if info:
+                    os.kill(info['pid'], signal.SIGTERM)
+                    time.sleep(.5)
 
     @unittest.skipUnless(os.name == 'nt', 'Windows single-file installer')
     def test_single_download_installs_without_pip_or_venv(self):

@@ -20,7 +20,7 @@ anviroute
 
 Name your model (for example `qwen`), enter the API URL and key in separate fields, and click **Save & connect**. AnviRoute detects the model, and checks the connection automatically.
 
-**2. In another terminal, from any project folder:**
+**2. From any project folder:**
 
 ```cmd
 anviroute run claude --modename qwen
@@ -81,7 +81,7 @@ Upgrading from v0.2? Its old `%LOCALAPPDATA%\AnviRoute\runtime` environment may 
 
 ## 2. Start your Kaggle API
 
-If you already have an API URL and bearer key, skip to [Two-terminal workflow](#3-two-terminal-workflow).
+If you already have an API URL and bearer key, skip to [Independent startup](#3-independent-startup).
 
 Otherwise, create a Kaggle Python notebook, enable **Internet**, choose a suitable GPU, and run the **two cells below in order**. You can also import [kaggle_anviroute.ipynb](examples/kaggle_anviroute.ipynb), which contains exactly these cells.
 
@@ -387,11 +387,11 @@ API key: <your generated secret>
 
 Copy **Base URL** and **API key**. Keep Kaggle running. Do not publish the notebook outputs, token file, or API key. The generated scripts/logs are in `/tmp/rea`; errors can be inspected in `/tmp/rea/ollama.log`, `proxy.log`, or `tunnel.log`.
 
-## 3. Two-terminal workflow
+## 3. Independent startup
 
-Keep `anviroute` running in terminal 1. It opens **http://127.0.0.1:20128** with the model setup form. Enter a saved name, API URL, and API key; **Save & connect** handles model detection and inference checks together.
+`anviroute` starts a background service and returns immediately. You can close its terminal. It opens **http://127.0.0.1:20128** with the model setup form. Enter a saved name, API URL, and API key; **Save & connect** handles model detection and inference checks together.
 
-In terminal 2, run `anviroute run claude --modename qwen` from your project. Replace `qwen` with your saved name. Each named Claude session keeps its own route even when another saved model is selected in the dashboard.
+From any terminal, run `anviroute run claude --modename qwen` from your project. Replace `qwen` with your saved name. If AnviRoute is stopped, the Claude command starts it automatically. Closing Claude leaves AnviRoute running; reopening Claude reuses the same service and saved connection. Each named Claude session keeps its own route even when another saved model is selected in the dashboard.
 
 When Kaggle regenerates the URL/key, enter the new URL and key in the saved model and click **Save & reconnect**. No need to recreate the model or change the Claude command. Keep your Kaggle notebook private because its output includes a credential. AnviRoute cannot discover a random tunnel URL without receiving the new address.
 
