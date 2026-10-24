@@ -73,7 +73,11 @@ class Router(Server):
         except (OSError, ValueError):
             pass
         if self.active in self.profiles:
-            self.activate(self.active)
+            try:
+                self.activate(self.active)
+            except BridgeError as exc:
+                self.record('adapter', 'Saved connection needs editing: ' + str(exc), False)
+                self.upstream = str(exc)
         # Initialize directly; no provider is required to start the dashboard.
         from http.server import ThreadingHTTPServer
         ThreadingHTTPServer.__init__(self, ('127.0.0.1', port), DashboardHandler)
@@ -281,17 +285,18 @@ class Router(Server):
             context = int(raw_context or 0)
             if context and not 1024 <= context <= 2000000:
                 raise BridgeError('Context window must be between 1024 and 2000000 tokens')
-            self.ready_profiles.pop(identifier, None)
-            self.diagnostics.pop(identifier, None)
             name = data.get('name', 'API').strip()[:80]
             if not name or any(p['name'].casefold() == name.casefold() and p['id'] != identifier for p in self.profiles.values()):
                 raise BridgeError('Use a unique profile name')
-            api = API(data.get('url', ''), data.get('key') or previous.get('key', ''),
+            api = API(data.get('url', ''), data.get('key', '').strip() or previous.get('key', ''),
                       data.get('model', '').strip(), data.get('format', 'openai'))
             if api.format not in ('openai', 'anthropic'):
                 raise BridgeError('Unknown API format')
+            encrypted_key = seal(api.key)
+            self.ready_profiles.pop(identifier, None)
+            self.diagnostics.pop(identifier, None)
             self.profiles[identifier] = {'id': identifier, 'name': name,
-                'url': api.url, 'key': api.key, 'encrypted_key': seal(api.key), 'model': api.model, 'format': api.format,
+                'url': api.url, 'key': api.key, 'encrypted_key': encrypted_key, 'model': api.model, 'format': api.format,
                 'context_tokens': context}
             if self.active == identifier or self.active is None:
                 self.activate(identifier)

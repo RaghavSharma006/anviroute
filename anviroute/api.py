@@ -15,6 +15,8 @@ from . import __version__
 
 def normalize_url(value):
     value = value.strip().rstrip("/")
+    if '/v1+' in value or any(c.isspace() for c in value):
+        raise BridgeError('Enter only the API URL here. Put the API key in the separate key field.')
     parsed = urllib.parse.urlsplit(value)
     if (parsed.scheme not in ("https", "http") or not parsed.hostname
             or parsed.username or parsed.password or parsed.query or parsed.fragment):

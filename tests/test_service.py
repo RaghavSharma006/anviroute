@@ -17,6 +17,32 @@ from test_anviroute import FakeAPI
 
 
 class ServiceTests(unittest.TestCase):
+    def test_bad_saved_url_does_not_prevent_dashboard_start(self):
+        self.router.control('save', {'name': 'legacy', 'url': 'https://example.com'})
+        p = self.router.profiles[self.router.active]
+        p['url'] = 'https://example.com/v1+old-key'
+        self.router.persist()
+        other = Router(0, self.temp.name)
+        try:
+            self.assertIsNone(other.api)
+            self.assertIn('separate key field', other.upstream)
+            self.assertEqual(len(other.profiles), 1)
+        finally:
+            other.server_close()
+
+    def test_blank_key_update_and_invalid_save_preserve_connection(self):
+        data = {'name': 'one', 'url': 'https://example.com', 'key': 'saved-secret', 'model': 'qwen'}
+        identifier = self.router.control('save', data)['id']
+        self.router.ready_profiles[identifier] = self.router.api
+        self.router.diagnostic(identifier, True, 'Verified')
+        with self.assertRaises(BridgeError):
+            self.router.control('save', {**data, 'id': identifier, 'url': 'not a URL'})
+        self.assertIn(identifier, self.router.ready_profiles)
+        self.assertTrue(self.router.checked)
+        self.router.control('save', {**data, 'id': identifier, 'url': 'https://new.example', 'key': '   '})
+        self.assertEqual(self.router.profiles[identifier]['key'], 'saved-secret')
+        self.assertNotIn(identifier, self.router.ready_profiles)
+
     def test_message_calls_inference_once_and_reports_usage(self):
         saved = self.router.control('save', {'name': 'test', 'url': 'https://example.com', 'model': 'qwen'})
         reply = {'content': [{'type': 'text', 'text': 'hello'}], 'usage': {'input_tokens': 7, 'output_tokens': 2}}

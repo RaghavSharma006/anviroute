@@ -18,7 +18,7 @@ Two commands. One saved model name.
 anviroute
 ```
 
-Name your model (for example `qwen`), paste your Kaggle output, and click **Save & connect**. AnviRoute extracts the URL/key, detects the model, and checks the connection automatically.
+Name your model (for example `qwen`), enter the API URL and key in separate fields, and click **Save & connect**. AnviRoute detects the model, and checks the connection automatically.
 
 **2. In another terminal, from any project folder:**
 
@@ -26,7 +26,7 @@ Name your model (for example `qwen`), paste your Kaggle output, and click **Save
 anviroute run claude --modename qwen
 ```
 
-**Kaggle restarted?** Paste the new output into the saved model's update box and click **Update & reconnect**. Keep the same name and Claude command. No separate activation or manual check step. Existing named routes use the updated address on the next request.
+**Kaggle restarted?** Enter the new URL and key in the saved model and click **Save & reconnect**. Keep the same name and Claude command. No separate activation or manual check step. Existing named routes use the updated address on the next request.
 
 Windows encrypts saved API keys for your account. Other platforms keep keys in memory only.
 
@@ -389,11 +389,11 @@ Copy **Base URL** and **API key**. Keep Kaggle running. Do not publish the noteb
 
 ## 3. Two-terminal workflow
 
-Keep `anviroute` running in terminal 1. It opens **http://127.0.0.1:20128** with the model setup form. Enter a saved name and paste the Kaggle output; **Save & connect** handles model detection and inference checks together.
+Keep `anviroute` running in terminal 1. It opens **http://127.0.0.1:20128** with the model setup form. Enter a saved name, API URL, and API key; **Save & connect** handles model detection and inference checks together.
 
 In terminal 2, run `anviroute run claude --modename qwen` from your project. Replace `qwen` with your saved name. Each named Claude session keeps its own route even when another saved model is selected in the dashboard.
 
-When Kaggle regenerates the URL/key, paste its new output into the saved model's update box and click **Update & reconnect**. No need to recreate the model or change the Claude command. Keep your Kaggle notebook private because its output includes a credential. AnviRoute cannot discover a random tunnel URL without receiving the new address.
+When Kaggle regenerates the URL/key, enter the new URL and key in the saved model and click **Save & reconnect**. No need to recreate the model or change the Claude command. Keep your Kaggle notebook private because its output includes a credential. AnviRoute cannot discover a random tunnel URL without receiving the new address.
 
 Opening `anviroute` again reuses the running router and opens the frontend. Windows credentials restore after restart. Other platforms require entering the key again.
 
@@ -459,10 +459,11 @@ Use **Send test message** on a saved model to see a real reply, elapsed time and
 
 The notebook warms the model, keeps it loaded for 30 minutes, and configures one inference slot with a 32K context. Existing Ollama processes must restart for server settings to apply. Check `ollama ps`: CPU offloading is a common cause of slow inference. A 27B model plus context may exceed your GPU memory. Increase context only when memory allows; Ollama recommends 64K+ for larger Claude projects. AnviRoute does not silently truncate your conversation or tools; OpenAI token counting is an estimate.
 
-Quick Tunnels do not support SSE, so replies are buffered until generation finishes. Keeping the model warm cannot extend Kaggle session limits or revive a stopped notebook. After shutdown, rerun the cells and paste their fresh output into the same saved profile. No key or URL can repair an offline backend.
+Quick Tunnels do not support SSE, so replies are buffered until generation finishes. Keeping the model warm cannot extend Kaggle session limits or revive a stopped notebook. After shutdown, rerun the cells and enter the fresh URL and key in the same saved profile. No key or URL can repair an offline backend.
 
 References: [Ollama memory and concurrency](https://docs.ollama.com/faq), [Claude context guidance](https://docs.ollama.com/integrations/claude-code), [Quick Tunnel limitations](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/).
 
 Set **Context window (tokens)** under the saved model’s optional settings to the context configured in Ollama (32768 with this notebook). AnviRoute passes it to Claude Code so compaction does not assume a 200K window for an unknown model. Leave blank only when Claude already knows the provider’s correct limit.
 
-Paste accepts the usual Kaggle output, a URL and key on separate lines, `API_KEY=...`, `Token: ...`, JSON, or an Authorization Bearer header. Each saved model also has a separate API key field. You can update only the key; URL-only updates explicitly show **keep saved key**. Ambiguous or empty labelled keys produce an error instead of silently replacing credentials.
+
+The combined output parser has been removed. Use the normal URL and password fields. Leave the key blank when editing to keep the saved key. Dark mode is the default; the theme toggle remembers your choice.

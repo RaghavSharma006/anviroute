@@ -59,6 +59,11 @@ class FakeAPI(BaseHTTPRequestHandler):
 
 
 class AnviRouteTests(unittest.TestCase):
+    def test_combined_url_and_key_is_rejected(self):
+        for value in ('https://example.com/v1+secret', 'https://example.com/v1 secret'):
+            with self.assertRaisesRegex(BridgeError, 'separate key field'):
+                normalize_url(value)
+
     def test_key_paste_normalization_and_dns_diagnostic(self):
         api = API('https://example.com/v1/', '  Bearer secret  ', 'model')
         self.assertEqual(api.key, 'secret')
