@@ -462,3 +462,5 @@ The notebook warms the model, keeps it loaded for 30 minutes, and configures one
 Quick Tunnels do not support SSE, so replies are buffered until generation finishes. Keeping the model warm cannot extend Kaggle session limits or revive a stopped notebook. After shutdown, rerun the cells and paste their fresh output into the same saved profile. No key or URL can repair an offline backend.
 
 References: [Ollama memory and concurrency](https://docs.ollama.com/faq), [Claude context guidance](https://docs.ollama.com/integrations/claude-code), [Quick Tunnel limitations](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/).
+
+Set **Context window (tokens)** under the saved model’s optional settings to the context configured in Ollama (32768 with this notebook). AnviRoute passes it to Claude Code so compaction does not assume a 200K window for an unknown model. Leave blank only when Claude already knows the provider’s correct limit.

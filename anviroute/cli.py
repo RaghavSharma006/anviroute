@@ -96,10 +96,12 @@ def run(args):
         except OSError:
             raise BridgeError(f'Cannot connect to saved model {args.modename!r}. Open {base} and update its Kaggle URL/key.') from None
         base += selected['path']
-        state.update(model=selected['model'], ready=selected['ready'])
+        state.update(model=selected['model'], ready=selected['ready'], context_tokens=selected.get('context_tokens', 0))
     if state.get('product') != 'AnviRoute' or not state.get('ready'):
         raise BridgeError('Open AnviRoute and save your model with its current URL/key.')
     env = claude_environment(base, state['model'], connection['token'])
+    if state.get('context_tokens'):
+        env['CLAUDE_CODE_MAX_CONTEXT_TOKENS'] = str(state['context_tokens'])
     env['CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC'] = '1'
     print(f"Claude -> {base} -> {state['model']}\nDiagnostics: {connection['url']}", flush=True)
     return subprocess.call([executable, '--model', state['model'], *args.claude_args], env=env)

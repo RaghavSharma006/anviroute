@@ -162,7 +162,7 @@ class ServiceTests(unittest.TestCase):
             start_server(upstream)
         try:
             urls = [f'http://127.0.0.1:{s.server_port}' for s in upstreams]
-            saved = self.control('connect', {'name': 'qwen', 'url': urls[0], 'key': 'upstream-secret', 'model': ''})
+            saved = self.control('connect', {'name': 'qwen', 'url': urls[0], 'key': 'upstream-secret', 'model': '', 'context_tokens': '32768'})
             self.assertTrue(saved['ready'])
             self.assertEqual(self.router.model, 'test-coder')
             # Another model becoming active must not change a named Claude session.
@@ -174,6 +174,7 @@ class ServiceTests(unittest.TestCase):
 
             def child(command, env):
                 self.assertEqual(command[1:3], ['--model', 'test-coder'])
+                self.assertEqual(env['CLAUDE_CODE_MAX_CONTEXT_TOKENS'], '32768')
                 self.assertEqual(env['ANTHROPIC_BASE_URL'], self.url + '/p/' + saved['id'])
                 result = request(env['ANTHROPIC_BASE_URL'] + '/v1/messages?beta=true', env['ANTHROPIC_AUTH_TOKEN'], {'messages': [{'role': 'user', 'content': 'Hello'}]})
                 self.assertEqual(result['stop_reason'], 'tool_use')
@@ -185,6 +186,7 @@ class ServiceTests(unittest.TestCase):
             # Same saved name and route pick up regenerated URL/key in one operation.
             updated = self.control('connect', {'id': saved['id'], 'name': 'qwen', 'url': urls[1], 'key': 'upstream-secret', 'model': 'test-coder'})
             self.assertTrue(updated['ready'])
+            self.assertEqual(self.router.profiles[saved['id']]['context_tokens'], 32768)
             request(self.url + '/p/' + saved['id'] + '/v1/messages', self.router.token, {'messages': [{'role': 'user', 'content': 'Hello'}]})
             self.assertEqual(Model.last_port, upstreams[1].server_port)
         finally:

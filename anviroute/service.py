@@ -131,6 +131,7 @@ class Router(Server):
         with self.lock:
             return {'product': 'AnviRoute', 'version': __version__, 'address': self.address,
                     'active': self.active, 'model': self.model, 'ready': bool(self.api and self.model and self.checked),
+                    'context_tokens': self.profiles.get(self.active, {}).get('context_tokens', 0),
                     'providers': [{**{k: v for k, v in p.items() if k not in ('key', 'encrypted_key')}, 'key_saved': bool(p.get('encrypted_key'))} for p in list(self.profiles.values())],
                     'diagnostics': dict(self.diagnostics),
                     'credential_storage': 'Windows account encryption' if os.name == 'nt' else 'Memory only on this platform',
@@ -222,7 +223,8 @@ class Router(Server):
                         self.upstream = 'Authentication, model and inference OK'
                     self.persist()
                     self.diagnostic(identifier, True, 'Authentication, model and inference OK')
-            return {'model': api.model, 'path': '/p/' + identifier, 'ready': True}
+            return {'model': api.model, 'path': '/p/' + identifier, 'ready': True,
+                    'context_tokens': p.get('context_tokens', 0)}
         if action in ('save', 'activate', 'remove', 'model'):
             with self.lock:
                 return self.mutate(action, data)
@@ -273,6 +275,12 @@ class Router(Server):
         if action == 'save':
             identifier = data.get('id') or secrets.token_hex(8)
             previous = self.profiles.get(identifier, {})
+            raw_context = data.get('context_tokens', previous.get('context_tokens', 0))
+            if isinstance(raw_context, bool) or not str(raw_context or 0).isdigit():
+                raise BridgeError('Context window must be a whole number of tokens')
+            context = int(raw_context or 0)
+            if context and not 1024 <= context <= 2000000:
+                raise BridgeError('Context window must be between 1024 and 2000000 tokens')
             self.ready_profiles.pop(identifier, None)
             self.diagnostics.pop(identifier, None)
             name = data.get('name', 'API').strip()[:80]
@@ -283,7 +291,8 @@ class Router(Server):
             if api.format not in ('openai', 'anthropic'):
                 raise BridgeError('Unknown API format')
             self.profiles[identifier] = {'id': identifier, 'name': name,
-                'url': api.url, 'key': api.key, 'encrypted_key': seal(api.key), 'model': api.model, 'format': api.format}
+                'url': api.url, 'key': api.key, 'encrypted_key': seal(api.key), 'model': api.model, 'format': api.format,
+                'context_tokens': context}
             if self.active == identifier or self.active is None:
                 self.activate(identifier)
             self.persist()
