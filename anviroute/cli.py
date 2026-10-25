@@ -42,7 +42,7 @@ def ensure_service(port=20128):
     else:
         options['start_new_session'] = True
     child = subprocess.Popen(command, **options)
-    for _ in range(100):
+    for _ in range(600):
         try:
             return local_service()
         except BridgeError:

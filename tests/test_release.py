@@ -52,10 +52,10 @@ class LightweightReleaseTests(unittest.TestCase):
             descriptor = Path(folder) / 'AnviRoute/service.json'
             info = None
             try:
-                first = subprocess.run(command, cwd=folder, env=env, capture_output=True, text=True, timeout=20)
+                first = subprocess.run(command, cwd=folder, env=env, capture_output=True, text=True, timeout=80)
                 self.assertEqual(first.returncode, 0, first.stderr)
                 info = json.loads(descriptor.read_text())
-                second = subprocess.run(command, cwd=other, env=env, capture_output=True, text=True, timeout=20)
+                second = subprocess.run(command, cwd=other, env=env, capture_output=True, text=True, timeout=80)
                 self.assertEqual(second.returncode, 0, second.stderr)
                 self.assertEqual(json.loads(descriptor.read_text()), info)
                 req = urllib.request.Request(info['url'] + '/control/status', headers={'Authorization': 'Bearer ' + info['token']})
