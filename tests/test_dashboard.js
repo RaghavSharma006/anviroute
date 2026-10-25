@@ -16,10 +16,11 @@ const sandbox={document,navigator:{clipboard:{async writeText(v){copied=v}}},win
 vm.createContext(sandbox);for(const script of scripts)vm.runInContext(script,sandbox);
 (async()=>{
  await new Promise(setImmediate);
+ assert.equal(elements['recent-errors'].textContent,'No errors recorded.');
  assert.equal(document.documentElement.dataset.theme,'dark');elements.theme.onclick();assert.equal(savedTheme,'light');elements.theme.onclick();assert.equal(savedTheme,'dark');
  const card=elements.providers.children[0];const fields=card.children.filter(e=>e.tag==='label').flatMap(e=>e.children);
  const url=fields.find(e=>e.type==='url'),key=fields.find(e=>e.type==='password'),save=card.children.find(e=>e.textContent==='Save & reconnect');
- await card.children.find(e=>e.textContent==='Copy Claude command').onclick();assert.equal(copied,'anviroute run claude --modename qwen');
+ await card.children.flatMap(e=>[e,...e.children]).find(e=>e.textContent==='Copy Claude command').onclick();assert.equal(copied,'anviroute run claude --modename qwen');
  const show=card.children.find(e=>e.textContent==='Show entered key');await show.onclick();assert.equal(key.type,'text');await show.onclick();assert.equal(key.type,'password');
  assert.equal(url.value,'https://old.example/v1');assert.equal(key.value,'');
  url.value='https://new.example/v1';key.value='new-secret';key.oninput();let prevented=false;beforeUnload({preventDefault(){prevented=true}});assert.ok(prevented);document.activeElement=null;

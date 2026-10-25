@@ -214,3 +214,5 @@ The combined output parser has been removed. Use the normal URL and password fie
 ### Windows app-cache compatibility
 
 Installation and service state live in `%USERPROFILE%\.anviroute`, shared by ordinary terminals and packaged desktop apps. Existing saved models and encrypted keys migrate on first use; service tokens are recreated. Reopen your terminal after updating so it picks up the current launcher on PATH.
+
+Unspecified context windows default to **32,768 tokens**, including older profiles without a limit. Set the actual backend window in Edit model when different, and restart Claude for it to take effect. AnviRoute passes the context limit and a bounded output-token allowance at launch. The dashboard shows the saved limit, recent errors beside connections, and copy buttons beside commands.

@@ -151,8 +151,10 @@ def run(args):
     if state.get('product') != 'AnviRoute' or not state.get('ready'):
         raise BridgeError('Open AnviRoute and save your model with its current URL/key.')
     env = claude_environment(base, state['model'], connection['token'])
-    if state.get('context_tokens'):
-        env['CLAUDE_CODE_MAX_CONTEXT_TOKENS'] = str(state['context_tokens'])
+    context = state.get('context_tokens') or 32768
+    env['CLAUDE_CODE_MAX_CONTEXT_TOKENS'] = str(context)
+    env['CLAUDE_CODE_MAX_OUTPUT_TOKENS'] = str(min(4096, context // 4))
+    print(f'Context window: {context:,} tokens', flush=True)
     env['CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC'] = '1'
     print(f"Claude -> {base} -> {state['model']}\nDiagnostics: {connection['url']}", flush=True)
     return subprocess.call([executable, '--model', state['model'], *args.claude_args], env=env)

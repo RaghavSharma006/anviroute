@@ -179,6 +179,7 @@ class ServiceTests(unittest.TestCase):
 
     def test_second_terminal_launch_uses_existing_service(self):
         self.control('save', {'name': 'one', 'url': 'https://one.example', 'model': 'test-model'})
+        self.assertEqual(self.router.profiles[self.router.active]['context_tokens'], 32768)
         self.router.checked = True
         descriptor = Path(self.temp.name)/'service.json'
         descriptor.write_text(json.dumps({'url': self.url, 'token': self.router.token}))
@@ -189,6 +190,8 @@ class ServiceTests(unittest.TestCase):
              patch('builtins.input', side_effect=AssertionError('No connection prompts in terminal 2')):
             self.assertEqual(main(['run', 'claude']), 0)
             self.assertEqual(child.call_args.kwargs['env']['ANTHROPIC_BASE_URL'], self.url)
+            self.assertEqual(child.call_args.kwargs['env']['CLAUDE_CODE_MAX_CONTEXT_TOKENS'], '32768')
+            self.assertEqual(child.call_args.kwargs['env']['CLAUDE_CODE_MAX_OUTPUT_TOKENS'], '4096')
             token = child.call_args.kwargs['env']['ANTHROPIC_AUTH_TOKEN']
             with patch('anviroute.cli.subprocess.Popen', side_effect=AssertionError('Must reuse router')):
                 self.assertEqual(main(['run', 'claude']), 0)

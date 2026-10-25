@@ -67,7 +67,7 @@ class Router(Server):
                     key = unlock(p.get('encrypted_key'))
                 except BridgeError:
                     key = ''
-                self.profiles[p['id']] = {**p, 'key': key}
+                self.profiles[p['id']] = {**p, 'key': key, 'context_tokens': p.get('context_tokens') or 32768}
             self.active = saved.get('active')
         except (OSError, ValueError, KeyError, TypeError, BridgeError):
             pass
@@ -289,7 +289,7 @@ class Router(Server):
             raw_context = data.get('context_tokens', previous.get('context_tokens', 0))
             if isinstance(raw_context, bool) or not str(raw_context or 0).isdigit():
                 raise BridgeError('Context window must be a whole number of tokens')
-            context = int(raw_context or 0)
+            context = int(raw_context or 32768)
             if context and not 1024 <= context <= 2000000:
                 raise BridgeError('Context window must be between 1024 and 2000000 tokens')
             name = data.get('name', 'API').strip()[:80]
