@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$InstallRoot = $(if ($env:ANVIROUTE_INSTALL_ROOT) { $env:ANVIROUTE_INSTALL_ROOT } else { Join-Path $env:LOCALAPPDATA 'AnviRoute' }),
+    [string]$InstallRoot = $(if ($env:ANVIROUTE_INSTALL_ROOT) { $env:ANVIROUTE_INSTALL_ROOT } else { Join-Path $env:USERPROFILE '.anviroute' }),
     [string]$Python = 'python',
     [string]$PayloadBase64 = '',
     [string]$PayloadHash = '',
@@ -47,9 +47,8 @@ try {
     if (-not $SkipPathUpdate) {
         $userPathValue = [Environment]::GetEnvironmentVariable('Path', 'User')
         $entries = @($userPathValue -split ';' | Where-Object { $_ })
-        if (@($entries | Where-Object { $_.TrimEnd('\') -ieq $binDir.TrimEnd('\') }).Count -eq 0) {
-            [Environment]::SetEnvironmentVariable('Path', (($entries + $binDir) -join ';'), 'User')
-        }
+        $entries = @($entries | Where-Object { $_.TrimEnd('\') -ine $binDir.TrimEnd('\') })
+        [Environment]::SetEnvironmentVariable('Path', ((@($binDir) + $entries) -join ';'), 'User')
     }
     Write-Host 'AnviRoute ready. No pip, dependencies, or private Python environment needed.' -ForegroundColor Green
 } catch {

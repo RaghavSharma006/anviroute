@@ -22,7 +22,14 @@ from .vault import seal, unlock
 
 
 def data_dir():
-    return Path(os.environ.get('LOCALAPPDATA', Path.home()/'.config'))/'AnviRoute'
+    # User-profile storage is shared with ordinary shells (MSIX virtualizes AppData).
+    folder = Path(os.environ['ANVIROUTE_HOME']) if os.environ.get('ANVIROUTE_HOME') else Path.home()/'.anviroute'
+    folder.mkdir(parents=True, exist_ok=True)
+    previous = Path(os.environ.get('LOCALAPPDATA', Path.home()/'.config'))/'AnviRoute'/'providers.json'
+    target = folder/'providers.json'
+    if not target.exists() and previous.exists():
+        write_private(target, json.loads(previous.read_text(encoding='utf-8')))
+    return folder
 
 
 def write_private(path, data):

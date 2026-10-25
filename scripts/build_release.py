@@ -24,7 +24,7 @@ def build():
     bootstrap = r'''@echo off
 setlocal
 set "ANVIROUTE_BOOTSTRAP=%~f0"
-if not defined ANVIROUTE_INSTALL_ROOT set "ANVIROUTE_INSTALL_ROOT=%LOCALAPPDATA%\AnviRoute"
+if not defined ANVIROUTE_INSTALL_ROOT set "ANVIROUTE_INSTALL_ROOT=%USERPROFILE%\.anviroute"
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$s=[IO.File]::ReadAllText($env:ANVIROUTE_BOOTSTRAP); $p=[regex]::Match($s,'(?ms)^#BEGIN_POWERSHELL\r?\n(.*?)^#END_POWERSHELL'); $b=[regex]::Match($s,'(?ms)^#BEGIN_PAYLOAD\r?\n(.*?)^#END_PAYLOAD'); & ([scriptblock]::Create($p.Groups[1].Value)) -PayloadBase64 $b.Groups[1].Value -PayloadHash '__DIGEST__'"
 if errorlevel 1 goto failed
 call "%ANVIROUTE_INSTALL_ROOT%\bin\anviroute.cmd" %*

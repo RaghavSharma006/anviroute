@@ -467,3 +467,7 @@ Set **Context window (tokens)** under the saved model’s optional settings to t
 
 
 The combined output parser has been removed. Use the normal URL and password fields. Leave the key blank when editing to keep the saved key. Dark mode is the default; the theme toggle remembers your choice.
+
+### Windows app-cache compatibility
+
+Installation and service state live in `%USERPROFILE%\.anviroute`, shared by ordinary terminals and packaged desktop apps. Existing saved models and encrypted keys migrate on first use; service tokens are recreated. Reopen your terminal after updating so it picks up the current launcher on PATH.

@@ -9,7 +9,7 @@ import urllib.request
 from http.server import ThreadingHTTPServer
 
 from anviroute.cli import main
-from anviroute.service import Router
+from anviroute.service import Router, data_dir
 from anviroute.runtime import start_server
 from anviroute.common import BridgeError
 from helpers import request
@@ -17,6 +17,21 @@ from test_anviroute import FakeAPI
 
 
 class ServiceTests(unittest.TestCase):
+    def test_shared_state_ignores_appdata_and_preserves_migrated_keys(self):
+        with tempfile.TemporaryDirectory() as folder:
+            home = Path(folder)/'home'
+            old = Path(folder)/'virtualized'/'AnviRoute'
+            old.mkdir(parents=True)
+            saved = {'providers': [{'id': 'one', 'encrypted_key': {'data': 'opaque'}}], 'active': 'one'}
+            (old/'providers.json').write_text(json.dumps(saved))
+            with patch('anviroute.service.Path.home', return_value=home), patch.dict(os.environ, {'ANVIROUTE_HOME': '', 'LOCALAPPDATA': str(old.parent)}):
+                shared = data_dir()
+                self.assertEqual(shared, home/'.anviroute')
+                self.assertEqual(json.loads((shared/'providers.json').read_text()), saved)
+                with patch.dict(os.environ, {'LOCALAPPDATA': str(Path(folder)/'ordinary')}):
+                    self.assertEqual(data_dir(), shared)
+                    self.assertEqual(json.loads((shared/'providers.json').read_text()), saved)
+
     def test_bad_saved_url_does_not_prevent_dashboard_start(self):
         self.router.control('save', {'name': 'legacy', 'url': 'https://example.com'})
         p = self.router.profiles[self.router.active]

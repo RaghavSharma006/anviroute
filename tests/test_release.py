@@ -25,7 +25,7 @@ class LightweightReleaseTests(unittest.TestCase):
 
     def test_download_and_app_stay_small(self):
         self.assertLess((ROOT / 'dist/AnviRoute.cmd').stat().st_size, 40_000)
-        self.assertLess((ROOT / 'dist/anviroute.pyz').stat().st_size, 25_000)
+        self.assertLess((ROOT / 'dist/anviroute.pyz').stat().st_size, 26_000)
 
     def test_payload_integrity_and_no_legacy_modules(self):
         text = (ROOT / 'dist/AnviRoute.cmd').read_text()
@@ -45,11 +45,11 @@ class LightweightReleaseTests(unittest.TestCase):
 
     def test_detached_service_reused_from_another_folder(self):
         with tempfile.TemporaryDirectory() as folder:
-            env = {**os.environ, 'LOCALAPPDATA': folder}
+            env = {**os.environ, 'ANVIROUTE_HOME': str(Path(folder)/'state'), 'LOCALAPPDATA': folder}
             other = Path(folder) / 'project'
             other.mkdir()
             command = [sys.executable, str(ROOT / 'dist/anviroute.pyz'), 'start', '--port', '0', '--no-browser']
-            descriptor = Path(folder) / 'AnviRoute/service.json'
+            descriptor = Path(folder) / 'state/service.json'
             info = None
             try:
                 first = subprocess.run(command, cwd=folder, env=env, capture_output=True, text=True, timeout=80)
