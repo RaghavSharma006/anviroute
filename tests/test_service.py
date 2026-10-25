@@ -8,7 +8,7 @@ from unittest.mock import patch
 import urllib.request
 from http.server import ThreadingHTTPServer
 
-from anviroute.cli import main
+from anviroute.cli import main, tool_arguments, CORE_TOOLS
 from anviroute.service import Router, data_dir
 from anviroute.runtime import start_server
 from anviroute.common import BridgeError
@@ -17,6 +17,12 @@ from test_anviroute import FakeAPI
 
 
 class ServiceTests(unittest.TestCase):
+    def test_core_tools_default_and_explicit_overrides(self):
+        self.assertEqual(tool_arguments([]), ['--tools', CORE_TOOLS])
+        self.assertEqual(tool_arguments(['--tools', 'default']), [])
+        self.assertEqual(tool_arguments(['--tools=Read']), [])
+        self.assertEqual(tool_arguments(['--tools', '']), [])
+
     def test_shared_state_ignores_appdata_and_preserves_migrated_keys(self):
         with tempfile.TemporaryDirectory() as folder:
             home = Path(folder)/'home'

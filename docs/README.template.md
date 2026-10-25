@@ -216,3 +216,7 @@ The combined output parser has been removed. Use the normal URL and password fie
 Installation and service state live in `%USERPROFILE%\.anviroute`, shared by ordinary terminals and packaged desktop apps. Existing saved models and encrypted keys migrate on first use; service tokens are recreated. Reopen your terminal after updating so it picks up the current launcher on PATH.
 
 Unspecified context windows default to **32,768 tokens**, including older profiles without a limit. Set the actual backend window in Edit model when different, and restart Claude for it to take effect. AnviRoute passes the context limit and a bounded output-token allowance at launch. The dashboard shows the saved limit, recent errors beside connections, and copy buttons beside commands.
+
+### Smaller built-in toolset
+
+AnviRoute launches Claude with `Bash,Read,Edit,Write,Glob,Grep,AskUserQuestion` by default, reducing built-in tool definitions while retaining everyday coding actions. Other built-in tools are unavailable in these sessions; MCP tools and permission rules are unchanged. To restore all built-in tools for a session, run `anviroute run claude --modename qwen -- --tools default`. This does not remove Claude’s system prompt; check `/context` in a fresh session for actual usage.

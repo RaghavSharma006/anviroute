@@ -123,6 +123,15 @@ def local_service():
     return connection, state
 
 
+CORE_TOOLS = 'Bash,Read,Edit,Write,Glob,Grep,AskUserQuestion'
+
+
+def tool_arguments(arguments):
+    if any(arg == '--tools' or arg.startswith('--tools=') for arg in arguments):
+        return []
+    return ['--tools', CORE_TOOLS]
+
+
 def run(args):
     executable = shutil.which('claude')
     if not executable:
@@ -157,7 +166,7 @@ def run(args):
     print(f'Context window: {context:,} tokens', flush=True)
     env['CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC'] = '1'
     print(f"Claude -> {base} -> {state['model']}\nDiagnostics: {connection['url']}", flush=True)
-    return subprocess.call([executable, '--model', state['model'], *args.claude_args], env=env)
+    return subprocess.call([executable, '--model', state['model'], *tool_arguments(args.claude_args), *args.claude_args], env=env)
 
 
 def parser():
